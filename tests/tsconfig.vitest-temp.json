@@ -1,0 +1,32 @@
+{
+  "compilerOptions": {
+    "exactOptionalPropertyTypes": true,
+    "allowImportingTsExtensions": true,
+    "emitDeclarationOnly": false,
+    "declaration": true,
+    "moduleResolution": "node",
+    "outDir": "../dist/tmp",
+    "target": "esnext",
+    "lib": [
+      "es2020",
+      "es2021.promise"
+    ],
+    "esModuleInterop": true,
+    "module": "esnext",
+    "skipLibCheck": true,
+    "strict": true,
+    "types": [
+      "vitest/globals"
+    ],
+    "paths": {
+      "radashi": [
+        "../src/mod.ts"
+      ]
+    },
+    "incremental": true,
+    "tsBuildInfoFile": "/workspace/node_modules/.pnpm/vitest@2.1.9_@types+node@22.15.18/node_modules/vitest/dist/chunks/tsconfig.tmp.tsbuildinfo"
+  },
+  "exclude": [
+    "../dist/tmp"
+  ]
+}
