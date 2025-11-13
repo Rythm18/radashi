@@ -10,8 +10,8 @@ set -e
 case "$1" in
   base)
     echo "Running base repository tests (excluding slugify tests)..."
-    # Run vitest with exclude pattern for slugify test
-    pnpm exec vitest run --coverage --exclude '**/slugify.test.ts'
+    # Run all tests except slugify by using find to explicitly list test files
+    pnpm exec vitest run --coverage $(find tests -name "*.test.ts" ! -name "slugify.test.ts" | tr '\n' ' ')
     ;;
   new)
     echo "Running new slugify tests..."
