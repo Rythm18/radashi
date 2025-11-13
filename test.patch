@@ -1,225 +1,473 @@
 diff --git a/test.sh b/test.sh
 new file mode 100755
-index 0000000..23bb372
+index 0000000..1e2eb48
 --- /dev/null
 +++ b/test.sh
 @@ -0,0 +1,26 @@
 +#!/bin/bash
 +
-+# Test script for slugify feature implementation
++# Test script for deepDiff feature implementation
 +# Usage:
-+#   ./test.sh base  - Run base repository tests (excludes new slugify tests)
-+#   ./test.sh new   - Run new slugify tests only
++#   ./test.sh base  - Run base repository tests (excludes new deepDiff tests)
++#   ./test.sh new   - Run new deepDiff tests only
 +
 +set -e
 +
 +case "$1" in
 +  base)
-+    echo "Running base repository tests (excluding slugify tests)..."
-+    # Run all tests except slugify by using find to explicitly list test files
-+    pnpm exec vitest run --coverage $(find tests -name "*.test.ts" ! -name "slugify.test.ts" | tr '\n' ' ')
++    echo "Running base repository tests (excluding deepDiff tests)..."
++    # Run all tests except deepDiff by explicitly listing test files
++    pnpm exec vitest run --coverage $(find tests -name "*.test.ts" ! -name "deepDiff.test.ts" | tr '\n' ' ')
 +    ;;
 +  new)
-+    echo "Running new slugify tests..."
-+    pnpm test tests/string/slugify.test.ts
++    echo "Running new deepDiff tests..."
++    pnpm test tests/object/deepDiff.test.ts
 +    ;;
 +  *)
 +    echo "Usage: $0 {base|new}"
-+    echo "  base - Run base repository tests (excludes new slugify tests)"
-+    echo "  new  - Run new slugify tests only"
++    echo "  base - Run base repository tests (excludes new deepDiff tests)"
++    echo "  new  - Run new deepDiff tests only"
 +    exit 1
 +    ;;
 +esac
-diff --git a/tests/string/slugify.test.ts b/tests/string/slugify.test.ts
+diff --git a/tests/object/deepDiff.test.ts b/tests/object/deepDiff.test.ts
 new file mode 100644
-index 0000000..df197a2
+index 0000000..c2a44ba
 --- /dev/null
-+++ b/tests/string/slugify.test.ts
-@@ -0,0 +1,187 @@
++++ b/tests/object/deepDiff.test.ts
+@@ -0,0 +1,435 @@
 +import * as _ from 'radashi'
 +
-+describe('slugify', () => {
-+  test('converts basic string to slug', () => {
-+    expect(_.slugify('Hello World')).toBe('hello-world')
++describe('deepDiff', () => {
++  describe('basic differences', () => {
++    test('returns empty array for equal primitives', () => {
++      expect(_.deepDiff(5, 5)).toEqual([])
++      expect(_.deepDiff('hello', 'hello')).toEqual([])
++      expect(_.deepDiff(true, true)).toEqual([])
++      expect(_.deepDiff(null, null)).toEqual([])
++      expect(_.deepDiff(undefined, undefined)).toEqual([])
++    })
++
++    test('detects modified primitives', () => {
++      const result = _.deepDiff(5, 10)
++      expect(result).toEqual([
++        { type: 'CHANGE', path: [], oldValue: 5, value: 10 },
++      ])
++    })
++
++    test('detects added properties', () => {
++      const result = _.deepDiff({ a: 1 }, { a: 1, b: 2 })
++      expect(result).toContainEqual({
++        type: 'CREATE',
++        path: ['b'],
++        value: 2,
++      })
++    })
++
++    test('detects removed properties', () => {
++      const result = _.deepDiff({ a: 1, b: 2 }, { a: 1 })
++      expect(result).toContainEqual({
++        type: 'REMOVE',
++        path: ['b'],
++        oldValue: 2,
++      })
++    })
++
++    test('detects modified properties', () => {
++      const result = _.deepDiff({ a: 1, b: 2 }, { a: 1, b: 3 })
++      expect(result).toContainEqual({
++        type: 'CHANGE',
++        path: ['b'],
++        oldValue: 2,
++        value: 3,
++      })
++    })
 +  })
 +
-+  test('converts string with multiple spaces', () => {
-+    expect(_.slugify('Hello   World   Test')).toBe('hello-world-test')
++  describe('nested objects', () => {
++    test('detects changes in nested objects', () => {
++      const obj1 = { a: { b: { c: 1 } } }
++      const obj2 = { a: { b: { c: 2 } } }
++      const result = _.deepDiff(obj1, obj2)
++      expect(result).toContainEqual({
++        type: 'CHANGE',
++        path: ['a', 'b', 'c'],
++        oldValue: 1,
++        value: 2,
++      })
++    })
++
++    test('detects added nested properties', () => {
++      const obj1 = { a: { b: 1 } }
++      const obj2 = { a: { b: 1, c: 2 } }
++      const result = _.deepDiff(obj1, obj2)
++      expect(result).toContainEqual({
++        type: 'CREATE',
++        path: ['a', 'c'],
++        value: 2,
++      })
++    })
++
++    test('detects removed nested properties', () => {
++      const obj1 = { a: { b: 1, c: 2 } }
++      const obj2 = { a: { b: 1 } }
++      const result = _.deepDiff(obj1, obj2)
++      expect(result).toContainEqual({
++        type: 'REMOVE',
++        path: ['a', 'c'],
++        oldValue: 2,
++      })
++    })
 +  })
 +
-+  test('handles single word', () => {
-+    expect(_.slugify('hello')).toBe('hello')
-+    expect(_.slugify('HELLO')).toBe('hello')
++  describe('arrays', () => {
++    test('detects equal arrays', () => {
++      expect(_.deepDiff([1, 2, 3], [1, 2, 3])).toEqual([])
++    })
++
++    test('detects array element changes', () => {
++      const result = _.deepDiff([1, 2, 3], [1, 5, 3])
++      expect(result).toContainEqual({
++        type: 'CHANGE',
++        path: [1],
++        oldValue: 2,
++        value: 5,
++      })
++    })
++
++    test('detects array length changes (added)', () => {
++      const result = _.deepDiff([1, 2], [1, 2, 3])
++      expect(result).toContainEqual({
++        type: 'CREATE',
++        path: [2],
++        value: 3,
++      })
++    })
++
++    test('detects array length changes (removed)', () => {
++      const result = _.deepDiff([1, 2, 3], [1, 2])
++      expect(result).toContainEqual({
++        type: 'REMOVE',
++        path: [2],
++        oldValue: 3,
++      })
++    })
++
++    test('detects nested array changes', () => {
++      const obj1 = { arr: [{ id: 1 }, { id: 2 }] }
++      const obj2 = { arr: [{ id: 1 }, { id: 3 }] }
++      const result = _.deepDiff(obj1, obj2)
++      expect(result).toContainEqual({
++        type: 'CHANGE',
++        path: ['arr', 1, 'id'],
++        oldValue: 2,
++        value: 3,
++      })
++    })
 +  })
 +
-+  test('removes special characters', () => {
-+    expect(_.slugify('Hello! World?')).toBe('hello-world')
-+    expect(_.slugify('Hello @ World #')).toBe('hello-world')
-+    expect(_.slugify('Price: $99.99')).toBe('price-9999')
++  describe('type changes', () => {
++    test('detects type changes from object to primitive', () => {
++      const result = _.deepDiff({ a: { b: 1 } }, { a: 'string' })
++      expect(result).toContainEqual({
++        type: 'CHANGE',
++        path: ['a'],
++        oldValue: { b: 1 },
++        value: 'string',
++      })
++    })
++
++    test('detects type changes from array to object', () => {
++      const result = _.deepDiff({ a: [1, 2] }, { a: { 0: 1, 1: 2 } })
++      expect(result.length).toBeGreaterThan(0)
++    })
++
++    test('detects type changes from null to object', () => {
++      const result = _.deepDiff({ a: null }, { a: { b: 1 } })
++      expect(result).toContainEqual({
++        type: 'CHANGE',
++        path: ['a'],
++        oldValue: null,
++        value: { b: 1 },
++      })
++    })
++
++    test('detects type changes from undefined to value', () => {
++      const result = _.deepDiff({ a: undefined }, { a: 1 })
++      expect(result).toContainEqual({
++        type: 'CHANGE',
++        path: ['a'],
++        oldValue: undefined,
++        value: 1,
++      })
++    })
 +  })
 +
-+  test('handles underscores and hyphens', () => {
-+    expect(_.slugify('hello_world')).toBe('hello-world')
-+    expect(_.slugify('hello-world')).toBe('hello-world')
-+    expect(_.slugify('hello_world-test')).toBe('hello-world-test')
++  describe('circular references', () => {
++    test('handles circular references in source', () => {
++      const obj1: any = { a: 1 }
++      obj1.self = obj1
++
++      const obj2 = { a: 1, self: { a: 2 } }
++
++      // Should not throw or hang
++      expect(() => _.deepDiff(obj1, obj2)).not.toThrow()
++    })
++
++    test('handles circular references in target', () => {
++      const obj1 = { a: 1, self: { a: 2 } }
++
++      const obj2: any = { a: 1 }
++      obj2.self = obj2
++
++      // Should not throw or hang
++      expect(() => _.deepDiff(obj1, obj2)).not.toThrow()
++    })
++
++    test('handles circular references in both', () => {
++      const obj1: any = { a: 1 }
++      obj1.self = obj1
++
++      const obj2: any = { a: 1 }
++      obj2.self = obj2
++
++      const result = _.deepDiff(obj1, obj2)
++      expect(result).toEqual([])
++    })
 +  })
 +
-+  test('handles camelCase', () => {
-+    expect(_.slugify('helloWorld')).toBe('hello-world')
-+    expect(_.slugify('HelloWorld')).toBe('hello-world')
-+    expect(_.slugify('XMLHttpRequest')).toBe('xml-http-request')
++  describe('special types', () => {
++    test('compares Date objects', () => {
++      const date1 = new Date('2024-01-01')
++      const date2 = new Date('2024-01-02')
++
++      const result = _.deepDiff({ date: date1 }, { date: date2 })
++      expect(result).toContainEqual({
++        type: 'CHANGE',
++        path: ['date'],
++        oldValue: date1,
++        value: date2,
++      })
++    })
++
++    test('compares equal Date objects', () => {
++      const date = new Date('2024-01-01')
++      expect(_.deepDiff({ date }, { date: new Date('2024-01-01') })).toEqual(
++        [],
++      )
++    })
++
++    test('compares RegExp objects', () => {
++      const regex1 = /test/gi
++      const regex2 = /test/g
++
++      const result = _.deepDiff({ regex: regex1 }, { regex: regex2 })
++      expect(result).toContainEqual({
++        type: 'CHANGE',
++        path: ['regex'],
++        oldValue: regex1,
++        value: regex2,
++      })
++    })
++
++    test('compares equal RegExp objects', () => {
++      const regex = /test/gi
++      expect(_.deepDiff({ regex }, { regex: /test/gi })).toEqual([])
++    })
++
++    test('compares Map objects', () => {
++      const map1 = new Map([
++        ['a', 1],
++        ['b', 2],
++      ])
++      const map2 = new Map([
++        ['a', 1],
++        ['b', 3],
++      ])
++
++      const result = _.deepDiff({ map: map1 }, { map: map2 })
++      expect(result.length).toBeGreaterThan(0)
++    })
++
++    test('compares Set objects', () => {
++      const set1 = new Set([1, 2, 3])
++      const set2 = new Set([1, 2, 4])
++
++      const result = _.deepDiff({ set: set1 }, { set: set2 })
++      expect(result.length).toBeGreaterThan(0)
++    })
 +  })
 +
-+  test('removes multiple consecutive hyphens', () => {
-+    expect(_.slugify('hello---world')).toBe('hello-world')
-+    expect(_.slugify('hello___world')).toBe('hello-world')
-+    expect(_.slugify('hello - - - world')).toBe('hello-world')
++  describe('symbols', () => {
++    test('detects changes in symbol properties', () => {
++      const sym = Symbol('test')
++      const obj1 = { [sym]: 1 }
++      const obj2 = { [sym]: 2 }
++
++      const result = _.deepDiff(obj1, obj2)
++      expect(result).toContainEqual({
++        type: 'CHANGE',
++        path: [sym],
++        oldValue: 1,
++        value: 2,
++      })
++    })
++
++    test('detects added symbol properties', () => {
++      const sym = Symbol('test')
++      const obj1 = {}
++      const obj2 = { [sym]: 1 }
++
++      const result = _.deepDiff(obj1, obj2)
++      expect(result).toContainEqual({
++        type: 'CREATE',
++        path: [sym],
++        value: 1,
++      })
++    })
 +  })
 +
-+  test('trims leading and trailing hyphens', () => {
-+    expect(_.slugify('-hello-world-')).toBe('hello-world')
-+    expect(_.slugify('___hello-world___')).toBe('hello-world')
-+    expect(_.slugify('  hello world  ')).toBe('hello-world')
++  describe('edge cases', () => {
++    test('handles empty objects', () => {
++      expect(_.deepDiff({}, {})).toEqual([])
++    })
++
++    test('handles empty arrays', () => {
++      expect(_.deepDiff([], [])).toEqual([])
++    })
++
++    test('handles null values', () => {
++      expect(_.deepDiff(null, null)).toEqual([])
++      const result = _.deepDiff({ a: null }, { a: null })
++      expect(result).toEqual([])
++    })
++
++    test('handles undefined values', () => {
++      const result = _.deepDiff({ a: undefined }, { a: undefined })
++      expect(result).toEqual([])
++    })
++
++    test('handles NaN values', () => {
++      // NaN is special - NaN !== NaN but Object.is(NaN, NaN) === true
++      expect(_.deepDiff(NaN, NaN)).toEqual([])
++      expect(_.deepDiff({ a: NaN }, { a: NaN })).toEqual([])
++    })
++
++    test('handles -0 vs +0', () => {
++      // Object.is treats -0 and +0 as different
++      const result = _.deepDiff({ a: -0 }, { a: +0 })
++      expect(result).toContainEqual({
++        type: 'CHANGE',
++        path: ['a'],
++        oldValue: -0,
++        value: +0,
++      })
++    })
++
++    test('handles sparse arrays', () => {
++      const arr1 = [1, , 3] // eslint-disable-line no-sparse-arrays
++      const arr2 = [1, 2, 3]
++
++      const result = _.deepDiff(arr1, arr2)
++      expect(result).toContainEqual({
++        type: 'CREATE',
++        path: [1],
++        value: 2,
++      })
++    })
++
++    test('handles large nested structures', () => {
++      const obj1 = {
++        a: { b: { c: { d: { e: { f: { g: { h: 1 } } } } } } },
++      }
++      const obj2 = {
++        a: { b: { c: { d: { e: { f: { g: { h: 2 } } } } } } },
++      }
++
++      const result = _.deepDiff(obj1, obj2)
++      expect(result).toContainEqual({
++        type: 'CHANGE',
++        path: ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'],
++        oldValue: 1,
++        value: 2,
++      })
++    })
++
++    test('handles multiple simultaneous changes', () => {
++      const obj1 = { a: 1, b: 2, c: 3, d: { e: 4 } }
++      const obj2 = { a: 10, c: 3, d: { e: 5 }, f: 6 }
++
++      const result = _.deepDiff(obj1, obj2)
++
++      // Should detect: a changed, b removed, d.e changed, f added
++      expect(result.length).toBe(4)
++      expect(result).toContainEqual({
++        type: 'CHANGE',
++        path: ['a'],
++        oldValue: 1,
++        value: 10,
++      })
++      expect(result).toContainEqual({
++        type: 'REMOVE',
++        path: ['b'],
++        oldValue: 2,
++      })
++      expect(result).toContainEqual({
++        type: 'CHANGE',
++        path: ['d', 'e'],
++        oldValue: 4,
++        value: 5,
++      })
++      expect(result).toContainEqual({
++        type: 'CREATE',
++        path: ['f'],
++        value: 6,
++      })
++    })
++
++    test('returns empty for identical complex objects', () => {
++      const obj = {
++        a: 1,
++        b: 'string',
++        c: [1, 2, { d: 3 }],
++        e: { f: { g: [4, 5, 6] } },
++        h: null,
++        i: undefined,
++      }
++
++      const result = _.deepDiff(obj, JSON.parse(JSON.stringify(obj)))
++      expect(result).toEqual([])
++    })
 +  })
 +
-+  test('handles numbers', () => {
-+    expect(_.slugify('hello 123 world')).toBe('hello-123-world')
-+    expect(_.slugify('123')).toBe('123')
-+    expect(_.slugify('v1.2.3')).toBe('v123')
-+  })
++  describe('performance considerations', () => {
++    test('handles large objects efficiently', () => {
++      const largeObj: any = {}
++      for (let i = 0; i < 1000; i++) {
++        largeObj[`key${i}`] = i
++      }
 +
-+  test('handles accented characters', () => {
-+    expect(_.slugify('café')).toBe('cafe')
-+    expect(_.slugify('naïve')).toBe('naive')
-+    expect(_.slugify('Zürich')).toBe('zurich')
-+    expect(_.slugify('São Paulo')).toBe('sao-paulo')
-+  })
++      const modifiedObj = { ...largeObj, key500: 999 }
 +
-+  test('handles unicode characters', () => {
-+    expect(_.slugify('Hello 你好 World')).toBe('hello-world')
-+    expect(_.slugify('Привет мир')).toBe('')
-+    expect(_.slugify('こんにちは')).toBe('')
-+  })
++      const start = Date.now()
++      const result = _.deepDiff(largeObj, modifiedObj)
++      const duration = Date.now() - start
 +
-+  test('handles mixed unicode and latin', () => {
-+    expect(_.slugify('Hello 世界 World')).toBe('hello-world')
-+    expect(_.slugify('Test 测试 123')).toBe('test-123')
-+  })
++      expect(result).toHaveLength(1)
++      expect(duration).toBeLessThan(100) // Should complete in reasonable time
++    })
 +
-+  test('handles empty and whitespace strings', () => {
-+    expect(_.slugify('')).toBe('')
-+    expect(_.slugify('   ')).toBe('')
-+    expect(_.slugify('\t\n')).toBe('')
-+  })
++    test('handles large arrays efficiently', () => {
++      const largeArr = Array.from({ length: 1000 }, (_, i) => i)
++      const modifiedArr = [...largeArr]
++      modifiedArr[500] = 999
 +
-+  test('handles strings with only special characters', () => {
-+    expect(_.slugify('!@#$%^&*()')).toBe('')
-+    expect(_.slugify('---')).toBe('')
-+    expect(_.slugify('___')).toBe('')
-+  })
++      const start = Date.now()
++      const result = _.deepDiff(largeArr, modifiedArr)
++      const duration = Date.now() - start
 +
-+  test('handles dots and slashes', () => {
-+    expect(_.slugify('hello.world')).toBe('helloworld')
-+    expect(_.slugify('hello/world')).toBe('hello-world')
-+    expect(_.slugify('path/to/file.txt')).toBe('path-to-filetxt')
-+  })
-+
-+  test('handles apostrophes and quotes', () => {
-+    expect(_.slugify("don't stop")).toBe('dont-stop')
-+    expect(_.slugify('"Hello World"')).toBe('hello-world')
-+    expect(_.slugify("it's a test")).toBe('its-a-test')
-+  })
-+
-+  test('handles parentheses and brackets', () => {
-+    expect(_.slugify('hello (world)')).toBe('hello-world')
-+    expect(_.slugify('hello [world]')).toBe('hello-world')
-+    expect(_.slugify('hello {world}')).toBe('hello-world')
-+  })
-+
-+  test('handles ampersands and plus signs', () => {
-+    expect(_.slugify('rock & roll')).toBe('rock-roll')
-+    expect(_.slugify('1 + 1 = 2')).toBe('1-1-2')
-+    expect(_.slugify('C++')).toBe('c')
-+  })
-+
-+  test('preserves URL-safe already slugified strings', () => {
-+    expect(_.slugify('hello-world-123')).toBe('hello-world-123')
-+    expect(_.slugify('my-awesome-post')).toBe('my-awesome-post')
-+  })
-+
-+  test('handles very long strings', () => {
-+    const longString = 'a'.repeat(1000)
-+    expect(_.slugify(longString)).toBe(longString)
-+  })
-+
-+  test('handles complex real-world examples', () => {
-+    expect(_.slugify('The Quick Brown Fox Jumps Over The Lazy Dog')).toBe(
-+      'the-quick-brown-fox-jumps-over-the-lazy-dog',
-+    )
-+    expect(_.slugify('10 Ways to Improve Your SEO in 2024!')).toBe(
-+      '10-ways-to-improve-your-seo-in-2024',
-+    )
-+    expect(_.slugify('Node.js vs Deno: Which is Better?')).toBe(
-+      'nodejs-vs-deno-which-is-better',
-+    )
-+    expect(_.slugify('My First Blog Post (Draft)')).toBe(
-+      'my-first-blog-post-draft',
-+    )
-+  })
-+
-+  test('handles german umlauts', () => {
-+    expect(_.slugify('Äpfel')).toBe('apfel')
-+    expect(_.slugify('Öl')).toBe('ol')
-+    expect(_.slugify('Über')).toBe('uber')
-+  })
-+
-+  test('handles french accents', () => {
-+    expect(_.slugify('Crème brûlée')).toBe('creme-brulee')
-+    expect(_.slugify('Château')).toBe('chateau')
-+    expect(_.slugify('Élégant')).toBe('elegant')
-+  })
-+
-+  test('handles spanish characters', () => {
-+    expect(_.slugify('Niño')).toBe('nino')
-+    expect(_.slugify('Jalapeño')).toBe('jalapeno')
-+    expect(_.slugify('Mañana')).toBe('manana')
-+  })
-+
-+  test('handles nordic characters', () => {
-+    expect(_.slugify('Åse')).toBe('ase')
-+    expect(_.slugify('Ødegård')).toBe('odegard')
-+    expect(_.slugify('Håkon')).toBe('hakon')
-+  })
-+
-+  test('handles polish characters', () => {
-+    expect(_.slugify('Łódź')).toBe('lodz')
-+    expect(_.slugify('Kraków')).toBe('krakow')
-+  })
-+
-+  test('handles turkish characters', () => {
-+    expect(_.slugify('İstanbul')).toBe('istanbul')
-+    expect(_.slugify('Şehir')).toBe('sehir')
-+  })
-+
-+  test('handles czech characters', () => {
-+    expect(_.slugify('Česká')).toBe('ceska')
-+    expect(_.slugify('Žižkov')).toBe('zizkov')
-+  })
-+
-+  test('handles mixed case with numbers', () => {
-+    expect(_.slugify('iPhone 15 Pro Max')).toBe('i-phone-15-pro-max')
-+    expect(_.slugify('Windows10')).toBe('windows10')
-+    expect(_.slugify('HTTP2Protocol')).toBe('http2-protocol')
-+  })
-+
-+  test('handles edge case with only hyphens and spaces', () => {
-+    expect(_.slugify('- - - -')).toBe('')
-+    expect(_.slugify('     ')).toBe('')
-+  })
-+
-+  test('handles tab and newline characters', () => {
-+    expect(_.slugify('hello\tworld')).toBe('hello-world')
-+    expect(_.slugify('hello\nworld')).toBe('hello-world')
-+    expect(_.slugify('hello\r\nworld')).toBe('hello-world')
++      expect(result).toHaveLength(1)
++      expect(duration).toBeLessThan(100)
++    })
 +  })
 +})

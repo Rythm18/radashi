@@ -1,0 +1,144 @@
+---
+title: deepDiff
+description: Compare two values and return detailed differences
+since: 12.2.0
+---
+
+### Usage
+
+Compares two values deeply and returns an array of differences. Each difference includes the type of change (`CREATE`, `REMOVE`, or `CHANGE`), the path to the changed value, and the old and/or new values.
+
+```ts
+import * as _ from 'radashi'
+
+const obj1 = { a: 1, b: { c: 2 } }
+const obj2 = { a: 1, b: { c: 3 }, d: 4 }
+
+_.deepDiff(obj1, obj2)
+// [
+//   { type: 'CHANGE', path: ['b', 'c'], oldValue: 2, value: 3 },
+//   { type: 'CREATE', path: ['d'], value: 4 }
+// ]
+```
+
+### Change Types
+
+The function returns three types of changes:
+
+**CREATE** - A property was added:
+```ts
+_.deepDiff({ a: 1 }, { a: 1, b: 2 })
+// [{ type: 'CREATE', path: ['b'], value: 2 }]
+```
+
+**REMOVE** - A property was removed:
+```ts
+_.deepDiff({ a: 1, b: 2 }, { a: 1 })
+// [{ type: 'REMOVE', path: ['b'], oldValue: 2 }]
+```
+
+**CHANGE** - A value was modified:
+```ts
+_.deepDiff({ a: 1 }, { a: 2 })
+// [{ type: 'CHANGE', path: ['a'], oldValue: 1, value: 2 }]
+```
+
+### Nested Objects
+
+Paths are represented as arrays, making it easy to locate deeply nested changes:
+
+```ts
+const user1 = {
+  name: 'Alice',
+  profile: {
+    age: 30,
+    address: { city: 'NYC', zip: '10001' }
+  }
+}
+
+const user2 = {
+  name: 'Alice',
+  profile: {
+    age: 31,
+    address: { city: 'NYC', zip: '10002' }
+  }
+}
+
+_.deepDiff(user1, user2)
+// [
+//   { type: 'CHANGE', path: ['profile', 'age'], oldValue: 30, value: 31 },
+//   { type: 'CHANGE', path: ['profile', 'address', 'zip'], oldValue: '10001', value: '10002' }
+// ]
+```
+
+### Arrays
+
+Array differences are reported with numeric indices:
+
+```ts
+_.deepDiff([1, 2, 3], [1, 5, 3, 4])
+// [
+//   { type: 'CHANGE', path: [1], oldValue: 2, value: 5 },
+//   { type: 'CREATE', path: [3], value: 4 }
+// ]
+```
+
+### Special Types
+
+Handles Dates, RegExp, Maps, and Sets:
+
+```ts
+// Dates
+_.deepDiff(
+  { date: new Date('2024-01-01') },
+  { date: new Date('2024-01-02') }
+)
+// [{ type: 'CHANGE', path: ['date'], oldValue: Date(...), value: Date(...) }]
+
+// Maps
+const map1 = new Map([['a', 1]])
+const map2 = new Map([['a', 2]])
+_.deepDiff({ map: map1 }, { map: map2 })
+// [{ type: 'CHANGE', path: ['map', 'Map.a'], oldValue: 1, value: 2 }]
+
+// Sets
+const set1 = new Set([1, 2, 3])
+const set2 = new Set([1, 2, 4])
+_.deepDiff({ set: set1 }, { set: set2 })
+// [{ type: 'CHANGE', path: ['set', 'Set', 2], oldValue: 3, value: 4 }]
+```
+
+### Circular References
+
+Safely handles circular references without infinite loops:
+
+```ts
+const obj1: any = { a: 1 }
+obj1.self = obj1
+
+const obj2: any = { a: 1 }
+obj2.self = obj2
+
+_.deepDiff(obj1, obj2)
+// [] - both have the same circular structure
+```
+
+### Symbols
+
+Works with symbol properties:
+
+```ts
+const sym = Symbol('id')
+_.deepDiff({ [sym]: 1 }, { [sym]: 2 })
+// [{ type: 'CHANGE', path: [Symbol(id)], oldValue: 1, value: 2 }]
+```
+
+### Performance
+
+Optimized for both shallow and deep comparisons. Returns empty array for equal values without unnecessary traversal:
+
+```ts
+const obj = { a: 1, b: { c: 2 } }
+_.deepDiff(obj, obj)
+// [] - same reference, instantly returns
+```

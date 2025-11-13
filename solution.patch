@@ -1,188 +1,440 @@
-diff --git a/benchmarks/string/slugify.bench.ts b/benchmarks/string/slugify.bench.ts
+diff --git a/benchmarks/object/deepDiff.bench.ts b/benchmarks/object/deepDiff.bench.ts
 new file mode 100644
-index 0000000..41979f2
+index 0000000..905bf47
 --- /dev/null
-+++ b/benchmarks/string/slugify.bench.ts
-@@ -0,0 +1,23 @@
++++ b/benchmarks/object/deepDiff.bench.ts
+@@ -0,0 +1,54 @@
 +import * as _ from 'radashi'
 +
-+describe('slugify', () => {
-+  bench('with basic string', () => {
-+    _.slugify('Hello World')
++describe('deepDiff', () => {
++  bench('with shallow object changes', () => {
++    const obj1 = { a: 1, b: 2, c: 3, d: 4, e: 5 }
++    const obj2 = { a: 1, b: 3, c: 3, d: 4, f: 6 }
++    _.deepDiff(obj1, obj2)
 +  })
 +
-+  bench('with complex string', () => {
-+    _.slugify('The Quick Brown Fox Jumps Over The Lazy Dog')
++  bench('with deep nested objects', () => {
++    const obj1 = { a: { b: { c: { d: { e: { f: 1 } } } } } }
++    const obj2 = { a: { b: { c: { d: { e: { f: 2 } } } } } }
++    _.deepDiff(obj1, obj2)
 +  })
 +
-+  bench('with accented characters', () => {
-+    _.slugify('Crème brûlée in São Paulo')
++  bench('with arrays', () => {
++    const arr1 = Array.from({ length: 100 }, (_, i) => i)
++    const arr2 = Array.from({ length: 100 }, (_, i) => (i === 50 ? 999 : i))
++    _.deepDiff(arr1, arr2)
 +  })
 +
-+  bench('with camelCase', () => {
-+    _.slugify('XMLHttpRequest')
++  bench('with large objects', () => {
++    const obj1: any = {}
++    const obj2: any = {}
++    for (let i = 0; i < 100; i++) {
++      obj1[`key${i}`] = i
++      obj2[`key${i}`] = i === 50 ? 999 : i
++    }
++    _.deepDiff(obj1, obj2)
 +  })
 +
-+  bench('with special characters', () => {
-+    _.slugify('Node.js vs Deno: Which is Better?')
++  bench('with no differences', () => {
++    const obj = { a: 1, b: { c: 2, d: [3, 4, 5] }, e: 'test' }
++    _.deepDiff(obj, JSON.parse(JSON.stringify(obj)))
++  })
++
++  bench('with complex mixed structure', () => {
++    const obj1 = {
++      users: [
++        { id: 1, name: 'Alice', tags: ['admin', 'user'] },
++        { id: 2, name: 'Bob', tags: ['user'] },
++      ],
++      settings: { theme: 'dark', lang: 'en' },
++    }
++    const obj2 = {
++      users: [
++        { id: 1, name: 'Alice', tags: ['admin', 'user'] },
++        { id: 2, name: 'Bobby', tags: ['user', 'moderator'] },
++      ],
++      settings: { theme: 'light', lang: 'en' },
++    }
++    _.deepDiff(obj1, obj2)
 +  })
 +})
-diff --git a/docs/string/slugify.mdx b/docs/string/slugify.mdx
+diff --git a/docs/object/deepDiff.mdx b/docs/object/deepDiff.mdx
 new file mode 100644
-index 0000000..6c66d7c
+index 0000000..bc6b927
 --- /dev/null
-+++ b/docs/string/slugify.mdx
-@@ -0,0 +1,92 @@
++++ b/docs/object/deepDiff.mdx
+@@ -0,0 +1,144 @@
 +---
-+title: slugify
-+description: Convert a string to a URL-friendly slug
++title: deepDiff
++description: Compare two values and return detailed differences
 +since: 12.2.0
 +---
 +
 +### Usage
 +
-+Converts a string into a URL-friendly slug. The function converts to lowercase, removes special characters, replaces spaces with hyphens, and handles accented character transliteration.
++Compares two values deeply and returns an array of differences. Each difference includes the type of change (`CREATE`, `REMOVE`, or `CHANGE`), the path to the changed value, and the old and/or new values.
 +
 +```ts
 +import * as _ from 'radashi'
 +
-+_.slugify('Hello World')
-+// => 'hello-world'
++const obj1 = { a: 1, b: { c: 2 } }
++const obj2 = { a: 1, b: { c: 3 }, d: 4 }
 +
-+_.slugify('The Quick Brown Fox Jumps Over The Lazy Dog')
-+// => 'the-quick-brown-fox-jumps-over-the-lazy-dog'
++_.deepDiff(obj1, obj2)
++// [
++//   { type: 'CHANGE', path: ['b', 'c'], oldValue: 2, value: 3 },
++//   { type: 'CREATE', path: ['d'], value: 4 }
++// ]
 +```
 +
-+### Handling Special Characters
++### Change Types
 +
-+Special characters are removed or converted to hyphens:
++The function returns three types of changes:
 +
++**CREATE** - A property was added:
 +```ts
-+_.slugify('Node.js is Great!')
-+// => 'nodejs-is-great'
-+
-+_.slugify('Price: $99.99')
-+// => 'price-9999'
-+
-+_.slugify('rock & roll')
-+// => 'rock-roll'
++_.deepDiff({ a: 1 }, { a: 1, b: 2 })
++// [{ type: 'CREATE', path: ['b'], value: 2 }]
 +```
 +
-+### Accented Characters
-+
-+Accented and diacritical characters are transliterated to their base form:
-+
++**REMOVE** - A property was removed:
 +```ts
-+_.slugify('Café au Lait')
-+// => 'cafe-au-lait'
-+
-+_.slugify('Crème brûlée')
-+// => 'creme-brulee'
-+
-+_.slugify('São Paulo')
-+// => 'sao-paulo'
-+
-+_.slugify('Zürich')
-+// => 'zurich'
++_.deepDiff({ a: 1, b: 2 }, { a: 1 })
++// [{ type: 'REMOVE', path: ['b'], oldValue: 2 }]
 +```
 +
-+### CamelCase Support
-+
-+Handles camelCase and PascalCase strings:
-+
++**CHANGE** - A value was modified:
 +```ts
-+_.slugify('helloWorld')
-+// => 'hello-world'
-+
-+_.slugify('XMLHttpRequest')
-+// => 'xml-http-request'
-+
-+_.slugify('iPhone 15 Pro Max')
-+// => 'i-phone-15-pro-max'
++_.deepDiff({ a: 1 }, { a: 2 })
++// [{ type: 'CHANGE', path: ['a'], oldValue: 1, value: 2 }]
 +```
 +
-+### Edge Cases
++### Nested Objects
 +
-+Handles various edge cases gracefully:
++Paths are represented as arrays, making it easy to locate deeply nested changes:
 +
 +```ts
-+// Empty strings
-+_.slugify('')
-+// => ''
++const user1 = {
++  name: 'Alice',
++  profile: {
++    age: 30,
++    address: { city: 'NYC', zip: '10001' }
++  }
++}
 +
-+// Multiple spaces/hyphens are normalized
-+_.slugify('hello   world')
-+// => 'hello-world'
++const user2 = {
++  name: 'Alice',
++  profile: {
++    age: 31,
++    address: { city: 'NYC', zip: '10002' }
++  }
++}
 +
-+_.slugify('hello---world')
-+// => 'hello-world'
++_.deepDiff(user1, user2)
++// [
++//   { type: 'CHANGE', path: ['profile', 'age'], oldValue: 30, value: 31 },
++//   { type: 'CHANGE', path: ['profile', 'address', 'zip'], oldValue: '10001', value: '10002' }
++// ]
++```
 +
-+// Leading/trailing hyphens are removed
-+_.slugify('  hello world  ')
-+// => 'hello-world'
++### Arrays
 +
-+// Only special characters return empty string
-+_.slugify('!@#$%')
-+// => ''
++Array differences are reported with numeric indices:
++
++```ts
++_.deepDiff([1, 2, 3], [1, 5, 3, 4])
++// [
++//   { type: 'CHANGE', path: [1], oldValue: 2, value: 5 },
++//   { type: 'CREATE', path: [3], value: 4 }
++// ]
++```
++
++### Special Types
++
++Handles Dates, RegExp, Maps, and Sets:
++
++```ts
++// Dates
++_.deepDiff(
++  { date: new Date('2024-01-01') },
++  { date: new Date('2024-01-02') }
++)
++// [{ type: 'CHANGE', path: ['date'], oldValue: Date(...), value: Date(...) }]
++
++// Maps
++const map1 = new Map([['a', 1]])
++const map2 = new Map([['a', 2]])
++_.deepDiff({ map: map1 }, { map: map2 })
++// [{ type: 'CHANGE', path: ['map', 'Map.a'], oldValue: 1, value: 2 }]
++
++// Sets
++const set1 = new Set([1, 2, 3])
++const set2 = new Set([1, 2, 4])
++_.deepDiff({ set: set1 }, { set: set2 })
++// [{ type: 'CHANGE', path: ['set', 'Set', 2], oldValue: 3, value: 4 }]
++```
++
++### Circular References
++
++Safely handles circular references without infinite loops:
++
++```ts
++const obj1: any = { a: 1 }
++obj1.self = obj1
++
++const obj2: any = { a: 1 }
++obj2.self = obj2
++
++_.deepDiff(obj1, obj2)
++// [] - both have the same circular structure
++```
++
++### Symbols
++
++Works with symbol properties:
++
++```ts
++const sym = Symbol('id')
++_.deepDiff({ [sym]: 1 }, { [sym]: 2 })
++// [{ type: 'CHANGE', path: [Symbol(id)], oldValue: 1, value: 2 }]
++```
++
++### Performance
++
++Optimized for both shallow and deep comparisons. Returns empty array for equal values without unnecessary traversal:
++
++```ts
++const obj = { a: 1, b: { c: 2 } }
++_.deepDiff(obj, obj)
++// [] - same reference, instantly returns
 +```
 diff --git a/src/mod.ts b/src/mod.ts
-index de7f13d..bc4ee75 100644
+index bc4ee75..c6d7a07 100644
 --- a/src/mod.ts
 +++ b/src/mod.ts
-@@ -127,6 +127,7 @@ export * from './string/dedent.ts'
- export * from './string/escapeHTML.ts'
- export * from './string/pascal.ts'
- export * from './string/similarity.ts'
-+export * from './string/slugify.ts'
- export * from './string/snake.ts'
- export * from './string/template.ts'
- export * from './string/title.ts'
-diff --git a/src/string/slugify.ts b/src/string/slugify.ts
+@@ -86,6 +86,7 @@ export * from './object/clone.ts'
+ export * from './object/cloneDeep.ts'
+ export * from './object/construct.ts'
+ export * from './object/crush.ts'
++export * from './object/deepDiff.ts'
+ export * from './object/filterKey.ts'
+ export * from './object/get.ts'
+ export * from './object/getOrInsert.ts'
+diff --git a/src/object/deepDiff.ts b/src/object/deepDiff.ts
 new file mode 100644
-index 0000000..a7dbdcc
+index 0000000..0a0211e
 --- /dev/null
-+++ b/src/string/slugify.ts
-@@ -0,0 +1,43 @@
++++ b/src/object/deepDiff.ts
+@@ -0,0 +1,212 @@
 +/**
-+ * Converts a string to a URL-friendly slug. The string is normalized to
-+ * lowercase, special characters are removed, and spaces are replaced with
-+ * hyphens. Supports transliteration of accented characters (e.g., é → e).
++ * Compare two values and return an array of differences. Each difference
++ * includes the type of change, the path to the changed value, and the old
++ * and new values.
 + *
-+ * @see https://radashi.js.org/reference/string/slugify
++ * Handles circular references, nested objects, arrays, Maps, Sets, Dates,
++ * RegExp, symbols, and all primitive types.
++ *
++ * @see https://radashi.js.org/reference/object/deepDiff
 + * @example
 + * ```ts
-+ * slugify('Hello World') // => 'hello-world'
-+ * slugify('Café au Lait') // => 'cafe-au-lait'
-+ * slugify('Node.js is Great!') // => 'nodejs-is-great'
++ * const obj1 = { a: 1, b: { c: 2 } }
++ * const obj2 = { a: 1, b: { c: 3 }, d: 4 }
++ *
++ * deepDiff(obj1, obj2)
++ * // [
++ * //   { type: 'CHANGE', path: ['b', 'c'], oldValue: 2, value: 3 },
++ * //   { type: 'CREATE', path: ['d'], value: 4 }
++ * // ]
 + * ```
 + * @version 12.2.0
 + */
-+export function slugify(str: string): string {
-+  if (!str) {
-+    return ''
++export function deepDiff(
++  oldValue: any,
++  newValue: any,
++  path: Array<string | number | symbol> = [],
++  visited: WeakMap<object, object> = new WeakMap(),
++): Difference[] {
++  // If values are identical (including NaN), no difference
++  if (Object.is(oldValue, newValue)) {
++    return []
 +  }
 +
-+  // Normalize unicode characters and decompose accented characters
-+  const normalized = str.normalize('NFD').replace(/[\u0300-\u036f]/g, '')
++  // Handle special cases for Date and RegExp
++  if (oldValue instanceof Date && newValue instanceof Date) {
++    if (oldValue.getTime() === newValue.getTime()) {
++      return []
++    }
++    return [{ type: 'CHANGE', path, oldValue, value: newValue }]
++  }
 +
-+  // Convert to lowercase
-+  let slug = normalized.toLowerCase()
++  if (oldValue instanceof RegExp && newValue instanceof RegExp) {
++    if (oldValue.toString() === newValue.toString()) {
++      return []
++    }
++    return [{ type: 'CHANGE', path, oldValue, value: newValue }]
++  }
 +
-+  // Replace camelCase boundaries with hyphens (e.g., helloWorld -> hello-world)
-+  slug = slug.replace(/([a-z])([A-Z])/g, '$1-$2')
++  // If either is not an object, it's a change
++  if (
++    typeof oldValue !== 'object' ||
++    oldValue === null ||
++    typeof newValue !== 'object' ||
++    newValue === null
++  ) {
++    return [{ type: 'CHANGE', path, oldValue, value: newValue }]
++  }
 +
-+  // Replace multiple uppercase letters (e.g., XMLHttp -> xml-http)
-+  slug = slug.replace(/([A-Z]+)([A-Z][a-z])/g, '$1-$2')
++  // Handle circular references
++  if (visited.has(oldValue)) {
++    // If we've seen this object before, check if it's the same reference
++    if (visited.get(oldValue) === newValue) {
++      return []
++    }
++    // Different circular reference - treat as change
++    return [{ type: 'CHANGE', path, oldValue, value: newValue }]
++  }
 +
-+  // Replace non-alphanumeric characters (except hyphens) with hyphens
-+  // Keep numbers, lowercase letters, and hyphens
-+  slug = slug.replace(/[^a-z0-9-]+/g, '-')
++  // Track this object to detect cycles
++  visited.set(oldValue, newValue)
 +
-+  // Replace multiple consecutive hyphens with a single hyphen
-+  slug = slug.replace(/-+/g, '-')
++  const differences: Difference[] = []
 +
-+  // Remove leading and trailing hyphens
-+  slug = slug.replace(/^-+|-+$/g, '')
++  // Handle Maps
++  if (oldValue instanceof Map && newValue instanceof Map) {
++    const allKeys = new Set([...oldValue.keys(), ...newValue.keys()])
 +
-+  return slug
++    for (const key of allKeys) {
++      if (!oldValue.has(key)) {
++        differences.push({
++          type: 'CREATE',
++          path: [...path, `Map.${String(key)}`],
++          value: newValue.get(key),
++        })
++      } else if (!newValue.has(key)) {
++        differences.push({
++          type: 'REMOVE',
++          path: [...path, `Map.${String(key)}`],
++          oldValue: oldValue.get(key),
++        })
++      } else {
++        const nested = deepDiff(
++          oldValue.get(key),
++          newValue.get(key),
++          [...path, `Map.${String(key)}`],
++          visited,
++        )
++        differences.push(...nested)
++      }
++    }
++
++    return differences
++  }
++
++  // Handle Sets
++  if (oldValue instanceof Set && newValue instanceof Set) {
++    const oldArray = Array.from(oldValue)
++    const newArray = Array.from(newValue)
++
++    // Convert to arrays and compare
++    const nested = deepDiff(oldArray, newArray, [...path, 'Set'], visited)
++    differences.push(...nested)
++    return differences
++  }
++
++  // Handle arrays
++  if (Array.isArray(oldValue) && Array.isArray(newValue)) {
++    const maxLength = Math.max(oldValue.length, newValue.length)
++
++    for (let i = 0; i < maxLength; i++) {
++      const hasOld = i in oldValue
++      const hasNew = i in newValue
++
++      if (!hasOld && hasNew) {
++        differences.push({
++          type: 'CREATE',
++          path: [...path, i],
++          value: newValue[i],
++        })
++      } else if (hasOld && !hasNew) {
++        differences.push({
++          type: 'REMOVE',
++          path: [...path, i],
++          oldValue: oldValue[i],
++        })
++      } else if (hasOld && hasNew) {
++        const nested = deepDiff(
++          oldValue[i],
++          newValue[i],
++          [...path, i],
++          visited,
++        )
++        differences.push(...nested)
++      }
++    }
++
++    return differences
++  }
++
++  // Type mismatch (e.g., array vs object, or different constructor types)
++  if (
++    Array.isArray(oldValue) !== Array.isArray(newValue) ||
++    oldValue.constructor !== newValue.constructor
++  ) {
++    return [{ type: 'CHANGE', path, oldValue, value: newValue }]
++  }
++
++  // Handle plain objects
++  const oldKeys = Reflect.ownKeys(oldValue)
++  const newKeys = Reflect.ownKeys(newValue)
++  const allKeys = new Set([...oldKeys, ...newKeys])
++
++  for (const key of allKeys) {
++    const hasOld = Reflect.has(oldValue, key)
++    const hasNew = Reflect.has(newValue, key)
++
++    if (!hasOld && hasNew) {
++      differences.push({
++        type: 'CREATE',
++        path: [...path, key],
++        value: newValue[key],
++      })
++    } else if (hasOld && !hasNew) {
++      differences.push({
++        type: 'REMOVE',
++        path: [...path, key],
++        oldValue: oldValue[key],
++      })
++    } else {
++      const nested = deepDiff(
++        oldValue[key],
++        newValue[key],
++        [...path, key],
++        visited,
++      )
++      differences.push(...nested)
++    }
++  }
++
++  return differences
 +}
++
++/**
++ * Represents a difference between two values.
++ */
++export type Difference =
++  | {
++      type: 'CREATE'
++      path: Array<string | number | symbol>
++      value: any
++    }
++  | {
++      type: 'REMOVE'
++      path: Array<string | number | symbol>
++      oldValue: any
++    }
++  | {
++      type: 'CHANGE'
++      path: Array<string | number | symbol>
++      oldValue: any
++      value: any
++    }
