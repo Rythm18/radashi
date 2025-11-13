@@ -1,0 +1,631 @@
+diff --git a/src/object/deepDiff.ts b/src/object/deepDiff.ts
+new file mode 100644
+index 0000000..763b15b
+--- /dev/null
++++ b/src/object/deepDiff.ts
+@@ -0,0 +1,236 @@
++/**
++ * Compare two values and return an array of differences. Each difference
++ * includes the type of change, the path to the changed value, and the old
++ * and new values.
++ *
++ * Handles circular references, nested objects, arrays, Maps, Sets, Dates,
++ * RegExp, symbols, and all primitive types.
++ *
++ * @see https://radashi.js.org/reference/object/deepDiff
++ * @example
++ * ```ts
++ * const obj1 = { a: 1, b: { c: 2 } }
++ * const obj2 = { a: 1, b: { c: 3 }, d: 4 }
++ *
++ * deepDiff(obj1, obj2)
++ * // [
++ * //   { type: 'CHANGE', path: ['b', 'c'], oldValue: 2, value: 3 },
++ * //   { type: 'CREATE', path: ['d'], value: 4 }
++ * // ]
++ * ```
++ * @version 12.2.0
++ */
++export function deepDiff(
++  oldValue: any,
++  newValue: any,
++  path: Array<string | number | symbol> = [],
++  visited: WeakMap<object, object> = new WeakMap(),
++): Difference[] {
++  // If values are identical (including NaN), no difference
++  if (Object.is(oldValue, newValue)) {
++    return []
++  }
++
++  // Handle special cases for Date and RegExp
++  if (oldValue instanceof Date && newValue instanceof Date) {
++    if (oldValue.getTime() === newValue.getTime()) {
++      return []
++    }
++    return [{ type: 'CHANGE', path, oldValue, value: newValue }]
++  }
++
++  if (oldValue instanceof RegExp && newValue instanceof RegExp) {
++    if (oldValue.toString() === newValue.toString()) {
++      return []
++    }
++    return [{ type: 'CHANGE', path, oldValue, value: newValue }]
++  }
++
++  // If either is not an object, it's a change
++  if (
++    typeof oldValue !== 'object' ||
++    oldValue === null ||
++    typeof newValue !== 'object' ||
++    newValue === null
++  ) {
++    return [{ type: 'CHANGE', path, oldValue, value: newValue }]
++  }
++
++  // Handle circular references
++  if (visited.has(oldValue)) {
++    // If we've seen this object before, check if it's the same reference
++    if (visited.get(oldValue) === newValue) {
++      return []
++    }
++    // Different circular reference - treat as change
++    return [{ type: 'CHANGE', path, oldValue, value: newValue }]
++  }
++
++  // Track this object to detect cycles
++  visited.set(oldValue, newValue)
++
++  const differences: Difference[] = []
++
++  // Handle WeakMap and WeakSet by reference only (not iterable)
++  if (oldValue instanceof WeakMap || oldValue instanceof WeakSet) {
++    if (oldValue === newValue) {
++      return []
++    }
++    return [{ type: 'CHANGE', path, oldValue, value: newValue }]
++  }
++
++  // Handle Maps
++  if (oldValue instanceof Map && newValue instanceof Map) {
++    const allKeys = new Set([...oldValue.keys(), ...newValue.keys()])
++
++    for (const key of allKeys) {
++      if (!oldValue.has(key)) {
++        differences.push({
++          type: 'CREATE',
++          path: [...path, `Map.${String(key)}`],
++          value: newValue.get(key),
++        })
++      } else if (!newValue.has(key)) {
++        differences.push({
++          type: 'REMOVE',
++          path: [...path, `Map.${String(key)}`],
++          oldValue: oldValue.get(key),
++        })
++      } else {
++        const nested = deepDiff(
++          oldValue.get(key),
++          newValue.get(key),
++          [...path, `Map.${String(key)}`],
++          visited,
++        )
++        differences.push(...nested)
++      }
++    }
++
++    return differences
++  }
++
++  // Handle Sets
++  if (oldValue instanceof Set && newValue instanceof Set) {
++    const oldArray = Array.from(oldValue)
++    const newArray = Array.from(newValue)
++
++    // Convert to arrays and compare
++    const nested = deepDiff(oldArray, newArray, [...path, 'Set'], visited)
++    differences.push(...nested)
++    return differences
++  }
++
++  // Handle arrays
++  if (Array.isArray(oldValue) && Array.isArray(newValue)) {
++    const maxLength = Math.max(oldValue.length, newValue.length)
++
++    for (let i = 0; i < maxLength; i++) {
++      const hasOld = i in oldValue
++      const hasNew = i in newValue
++
++      if (!hasOld && hasNew) {
++        differences.push({
++          type: 'CREATE',
++          path: [...path, i],
++          value: newValue[i],
++        })
++      } else if (hasOld && !hasNew) {
++        differences.push({
++          type: 'REMOVE',
++          path: [...path, i],
++          oldValue: oldValue[i],
++        })
++      } else if (hasOld && hasNew) {
++        const nested = deepDiff(
++          oldValue[i],
++          newValue[i],
++          [...path, i],
++          visited,
++        )
++        differences.push(...nested)
++      }
++    }
++
++    return differences
++  }
++
++  // Type mismatch (e.g., array vs object, or different constructor types)
++  if (
++    Array.isArray(oldValue) !== Array.isArray(newValue) ||
++    oldValue.constructor !== newValue.constructor
++  ) {
++    return [{ type: 'CHANGE', path, oldValue, value: newValue }]
++  }
++
++  // Handle plain objects
++  const oldKeys = Reflect.ownKeys(oldValue)
++  const newKeys = Reflect.ownKeys(newValue)
++  const allKeys = new Set([...oldKeys, ...newKeys])
++
++  for (const key of allKeys) {
++    const hasOld = Reflect.has(oldValue, key)
++    const hasNew = Reflect.has(newValue, key)
++
++    // Get property descriptors to handle getters
++    const oldDescriptor = hasOld
++      ? Object.getOwnPropertyDescriptor(oldValue, key)
++      : undefined
++    const newDescriptor = hasNew
++      ? Object.getOwnPropertyDescriptor(newValue, key)
++      : undefined
++
++    // Get the actual values (will invoke getters if present)
++    const oldVal = hasOld ? oldValue[key] : undefined
++    const newVal = hasNew ? newValue[key] : undefined
++
++    // Treat absent and undefined as equal for objects
++    const isOldUndefined = !hasOld || oldVal === undefined
++    const isNewUndefined = !hasNew || newVal === undefined
++
++    if (isOldUndefined && isNewUndefined) {
++      // Both are absent or undefined - skip
++      continue
++    }
++
++    if (!hasOld && hasNew && newVal !== undefined) {
++      differences.push({
++        type: 'CREATE',
++        path: [...path, key],
++        value: newVal,
++      })
++    } else if (hasOld && !hasNew && oldVal !== undefined) {
++      differences.push({
++        type: 'REMOVE',
++        path: [...path, key],
++        oldValue: oldVal,
++      })
++    } else if (!isOldUndefined && !isNewUndefined) {
++      const nested = deepDiff(oldVal, newVal, [...path, key], visited)
++      differences.push(...nested)
++    }
++  }
++
++  return differences
++}
++
++/**
++ * Represents a difference between two values.
++ */
++export type Difference =
++  | {
++      type: 'CREATE'
++      path: Array<string | number | symbol>
++      value: any
++    }
++  | {
++      type: 'REMOVE'
++      path: Array<string | number | symbol>
++      oldValue: any
++    }
++  | {
++      type: 'CHANGE'
++      path: Array<string | number | symbol>
++      oldValue: any
++      value: any
++    }
+diff --git a/src/mod.ts b/src/mod.ts
+new file mode 100644
+index 0000000..c6d7a07
+--- /dev/null
++++ b/src/mod.ts
+@@ -0,0 +1,173 @@
++export * from './array/alphabetical.ts'
++export * from './array/boil.ts'
++export * from './array/cartesianProduct.ts'
++export * from './array/castArray.ts'
++export * from './array/castArrayIfExists.ts'
++export * from './array/cluster.ts'
++export * from './array/concat.ts'
++export * from './array/counting.ts'
++export * from './array/diff.ts'
++export * from './array/first.ts'
++export * from './array/flat.ts'
++export * from './array/fork.ts'
++export * from './array/group.ts'
++export * from './array/intersects.ts'
++export * from './array/isArrayEqual.ts'
++export * from './array/iterate.ts'
++export * from './array/last.ts'
++export * from './array/list.ts'
++export * from './array/mapify.ts'
++export * from './array/merge.ts'
++export * from './array/objectify.ts'
++export * from './array/pluck.ts'
++export * from './array/remove.ts'
++export * from './array/replace.ts'
++export * from './array/replaceOrAppend.ts'
++export * from './array/select.ts'
++export * from './array/selectFirst.ts'
++export * from './array/shift.ts'
++export * from './array/sift.ts'
++export * from './array/sort.ts'
++export * from './array/toggle.ts'
++export * from './array/unique.ts'
++export * from './array/unzip.ts'
++export * from './array/zip.ts'
++export * from './array/zipToObject.ts'
++
++export * from './async/all.ts'
++export * from './async/defer.ts'
++export * from './async/guard.ts'
++export * from './async/map.ts'
++export * from './async/parallel.ts'
++export * from './async/queueByKey.ts'
++export * from './async/reduce.ts'
++export * from './async/retry.ts'
++export * from './async/sleep.ts'
++export * from './async/timeout.ts'
++export * from './async/toResult.ts'
++export * from './async/tryit.ts'
++export * from './async/withResolvers.ts'
++
++export * from './curry/callable.ts'
++export * from './curry/chain.ts'
++export * from './curry/compose.ts'
++export * from './curry/debounce.ts'
++export * from './curry/flip.ts'
++export * from './curry/memo.ts'
++export * from './curry/memoLastCall.ts'
++export * from './curry/once.ts'
++export * from './curry/partial.ts'
++export * from './curry/partob.ts'
++export * from './curry/promiseChain.ts'
++export * from './curry/proxied.ts'
++export * from './curry/throttle.ts'
++
++export * from './function/always.ts'
++export * from './function/castComparator.ts'
++export * from './function/castMapping.ts'
++export * from './function/identity.ts'
++export * from './function/noop.ts'
++
++export * from './number/clamp.ts'
++export * from './number/inRange.ts'
++export * from './number/lerp.ts'
++export * from './number/max.ts'
++export * from './number/min.ts'
++export * from './number/parseDuration.ts'
++export * from './number/parseQuantity.ts'
++export * from './number/range.ts'
++export * from './number/round.ts'
++export * from './number/sum.ts'
++export * from './number/toFloat.ts'
++export * from './number/toInt.ts'
++
++export * from './object/assign.ts'
++export * from './object/clone.ts'
++export * from './object/cloneDeep.ts'
++export * from './object/construct.ts'
++export * from './object/crush.ts'
++export * from './object/deepDiff.ts'
++export * from './object/filterKey.ts'
++export * from './object/get.ts'
++export * from './object/getOrInsert.ts'
++export * from './object/getOrInsertComputed.ts'
++export * from './object/invert.ts'
++export * from './object/isDangerousKey.ts'
++export * from './object/keys.ts'
++export * from './object/listify.ts'
++export * from './object/lowerize.ts'
++export * from './object/mapEntries.ts'
++export * from './object/mapKeys.ts'
++export * from './object/mapValues.ts'
++export * from './object/omit.ts'
++export * from './object/pick.ts'
++export * from './object/set.ts'
++export * from './object/shake.ts'
++export * from './object/traverse.ts'
++export * from './object/upperize.ts'
++
++export * from './oop/AggregateError.ts'
++export * from './oop/DurationParser.ts'
++export * from './oop/QuantityParser.ts'
++export * from './oop/Semaphore.ts'
++export * from './oop/TimeoutError.ts'
++
++export * from './random/absoluteJitter.ts'
++export * from './random/draw.ts'
++export * from './random/proportionalJitter.ts'
++export * from './random/random.ts'
++export * from './random/shuffle.ts'
++export * from './random/uid.ts'
++
++export * from './series/series.ts'
++
++export * from './string/camel.ts'
++export * from './string/capitalize.ts'
++export * from './string/dash.ts'
++export * from './string/dedent.ts'
++export * from './string/escapeHTML.ts'
++export * from './string/pascal.ts'
++export * from './string/similarity.ts'
++export * from './string/slugify.ts'
++export * from './string/snake.ts'
++export * from './string/template.ts'
++export * from './string/title.ts'
++export * from './string/trim.ts'
++
++export * from './typed/assert.ts'
++export * from './typed/isArray.ts'
++export * from './typed/isAsyncIterable.ts'
++export * from './typed/isBigInt.ts'
++export * from './typed/isBoolean.ts'
++export * from './typed/isClass.ts'
++export * from './typed/isDate.ts'
++export * from './typed/isEmpty.ts'
++export * from './typed/isEqual.ts'
++export * from './typed/isError.ts'
++export * from './typed/isFloat.ts'
++export * from './typed/isFunction.ts'
++export * from './typed/isInt.ts'
++export * from './typed/isIntString.ts'
++export * from './typed/isIterable.ts'
++export * from './typed/isMap.ts'
++export * from './typed/isMapEqual.ts'
++export * from './typed/isNullish.ts'
++export * from './typed/isNumber.ts'
++export * from './typed/isObject.ts'
++export * from './typed/isPlainObject.ts'
++export * from './typed/isPrimitive.ts'
++export * from './typed/isPromise.ts'
++export * from './typed/isRegExp.ts'
++export * from './typed/isResult.ts'
++export * from './typed/isResultErr.ts'
++export * from './typed/isResultOk.ts'
++export * from './typed/isSet.ts'
++export * from './typed/isSetEqual.ts'
++export * from './typed/isString.ts'
++export * from './typed/isSymbol.ts'
++export * from './typed/isTagged.ts'
++export * from './typed/isUndefined.ts'
++export * from './typed/isWeakMap.ts'
++export * from './typed/isWeakSet.ts'
++
++export * from './types.ts'
+diff --git a/benchmarks/object/deepDiff.bench.ts b/benchmarks/object/deepDiff.bench.ts
+new file mode 100644
+index 0000000..905bf47
+--- /dev/null
++++ b/benchmarks/object/deepDiff.bench.ts
+@@ -0,0 +1,54 @@
++import * as _ from 'radashi'
++
++describe('deepDiff', () => {
++  bench('with shallow object changes', () => {
++    const obj1 = { a: 1, b: 2, c: 3, d: 4, e: 5 }
++    const obj2 = { a: 1, b: 3, c: 3, d: 4, f: 6 }
++    _.deepDiff(obj1, obj2)
++  })
++
++  bench('with deep nested objects', () => {
++    const obj1 = { a: { b: { c: { d: { e: { f: 1 } } } } } }
++    const obj2 = { a: { b: { c: { d: { e: { f: 2 } } } } } }
++    _.deepDiff(obj1, obj2)
++  })
++
++  bench('with arrays', () => {
++    const arr1 = Array.from({ length: 100 }, (_, i) => i)
++    const arr2 = Array.from({ length: 100 }, (_, i) => (i === 50 ? 999 : i))
++    _.deepDiff(arr1, arr2)
++  })
++
++  bench('with large objects', () => {
++    const obj1: any = {}
++    const obj2: any = {}
++    for (let i = 0; i < 100; i++) {
++      obj1[`key${i}`] = i
++      obj2[`key${i}`] = i === 50 ? 999 : i
++    }
++    _.deepDiff(obj1, obj2)
++  })
++
++  bench('with no differences', () => {
++    const obj = { a: 1, b: { c: 2, d: [3, 4, 5] }, e: 'test' }
++    _.deepDiff(obj, JSON.parse(JSON.stringify(obj)))
++  })
++
++  bench('with complex mixed structure', () => {
++    const obj1 = {
++      users: [
++        { id: 1, name: 'Alice', tags: ['admin', 'user'] },
++        { id: 2, name: 'Bob', tags: ['user'] },
++      ],
++      settings: { theme: 'dark', lang: 'en' },
++    }
++    const obj2 = {
++      users: [
++        { id: 1, name: 'Alice', tags: ['admin', 'user'] },
++        { id: 2, name: 'Bobby', tags: ['user', 'moderator'] },
++      ],
++      settings: { theme: 'light', lang: 'en' },
++    }
++    _.deepDiff(obj1, obj2)
++  })
++})
+diff --git a/docs/object/deepDiff.mdx b/docs/object/deepDiff.mdx
+new file mode 100644
+index 0000000..bc6b927
+--- /dev/null
++++ b/docs/object/deepDiff.mdx
+@@ -0,0 +1,144 @@
++---
++title: deepDiff
++description: Compare two values and return detailed differences
++since: 12.2.0
++---
++
++### Usage
++
++Compares two values deeply and returns an array of differences. Each difference includes the type of change (`CREATE`, `REMOVE`, or `CHANGE`), the path to the changed value, and the old and/or new values.
++
++```ts
++import * as _ from 'radashi'
++
++const obj1 = { a: 1, b: { c: 2 } }
++const obj2 = { a: 1, b: { c: 3 }, d: 4 }
++
++_.deepDiff(obj1, obj2)
++// [
++//   { type: 'CHANGE', path: ['b', 'c'], oldValue: 2, value: 3 },
++//   { type: 'CREATE', path: ['d'], value: 4 }
++// ]
++```
++
++### Change Types
++
++The function returns three types of changes:
++
++**CREATE** - A property was added:
++```ts
++_.deepDiff({ a: 1 }, { a: 1, b: 2 })
++// [{ type: 'CREATE', path: ['b'], value: 2 }]
++```
++
++**REMOVE** - A property was removed:
++```ts
++_.deepDiff({ a: 1, b: 2 }, { a: 1 })
++// [{ type: 'REMOVE', path: ['b'], oldValue: 2 }]
++```
++
++**CHANGE** - A value was modified:
++```ts
++_.deepDiff({ a: 1 }, { a: 2 })
++// [{ type: 'CHANGE', path: ['a'], oldValue: 1, value: 2 }]
++```
++
++### Nested Objects
++
++Paths are represented as arrays, making it easy to locate deeply nested changes:
++
++```ts
++const user1 = {
++  name: 'Alice',
++  profile: {
++    age: 30,
++    address: { city: 'NYC', zip: '10001' }
++  }
++}
++
++const user2 = {
++  name: 'Alice',
++  profile: {
++    age: 31,
++    address: { city: 'NYC', zip: '10002' }
++  }
++}
++
++_.deepDiff(user1, user2)
++// [
++//   { type: 'CHANGE', path: ['profile', 'age'], oldValue: 30, value: 31 },
++//   { type: 'CHANGE', path: ['profile', 'address', 'zip'], oldValue: '10001', value: '10002' }
++// ]
++```
++
++### Arrays
++
++Array differences are reported with numeric indices:
++
++```ts
++_.deepDiff([1, 2, 3], [1, 5, 3, 4])
++// [
++//   { type: 'CHANGE', path: [1], oldValue: 2, value: 5 },
++//   { type: 'CREATE', path: [3], value: 4 }
++// ]
++```
++
++### Special Types
++
++Handles Dates, RegExp, Maps, and Sets:
++
++```ts
++// Dates
++_.deepDiff(
++  { date: new Date('2024-01-01') },
++  { date: new Date('2024-01-02') }
++)
++// [{ type: 'CHANGE', path: ['date'], oldValue: Date(...), value: Date(...) }]
++
++// Maps
++const map1 = new Map([['a', 1]])
++const map2 = new Map([['a', 2]])
++_.deepDiff({ map: map1 }, { map: map2 })
++// [{ type: 'CHANGE', path: ['map', 'Map.a'], oldValue: 1, value: 2 }]
++
++// Sets
++const set1 = new Set([1, 2, 3])
++const set2 = new Set([1, 2, 4])
++_.deepDiff({ set: set1 }, { set: set2 })
++// [{ type: 'CHANGE', path: ['set', 'Set', 2], oldValue: 3, value: 4 }]
++```
++
++### Circular References
++
++Safely handles circular references without infinite loops:
++
++```ts
++const obj1: any = { a: 1 }
++obj1.self = obj1
++
++const obj2: any = { a: 1 }
++obj2.self = obj2
++
++_.deepDiff(obj1, obj2)
++// [] - both have the same circular structure
++```
++
++### Symbols
++
++Works with symbol properties:
++
++```ts
++const sym = Symbol('id')
++_.deepDiff({ [sym]: 1 }, { [sym]: 2 })
++// [{ type: 'CHANGE', path: [Symbol(id)], oldValue: 1, value: 2 }]
++```
++
++### Performance
++
++Optimized for both shallow and deep comparisons. Returns empty array for equal values without unnecessary traversal:
++
++```ts
++const obj = { a: 1, b: { c: 2 } }
++_.deepDiff(obj, obj)
++// [] - same reference, instantly returns
++```
