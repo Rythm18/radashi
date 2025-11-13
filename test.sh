@@ -2,15 +2,15 @@
 
 # Test script for slugify feature implementation
 # Usage:
-#   ./test.sh base  - Run base repository tests
+#   ./test.sh base  - Run base repository tests (excludes new slugify tests)
 #   ./test.sh new   - Run new slugify tests only
 
 set -e
 
 case "$1" in
   base)
-    echo "Running base repository tests..."
-    pnpm test
+    echo "Running base repository tests (excluding slugify tests)..."
+    pnpm test --exclude tests/string/slugify.test.ts
     ;;
   new)
     echo "Running new slugify tests..."
@@ -18,7 +18,7 @@ case "$1" in
     ;;
   *)
     echo "Usage: $0 {base|new}"
-    echo "  base - Run base repository tests"
+    echo "  base - Run base repository tests (excludes new slugify tests)"
     echo "  new  - Run new slugify tests only"
     exit 1
     ;;
