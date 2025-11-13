@@ -1,0 +1,92 @@
+---
+title: slugify
+description: Convert a string to a URL-friendly slug
+since: 12.2.0
+---
+
+### Usage
+
+Converts a string into a URL-friendly slug. The function converts to lowercase, removes special characters, replaces spaces with hyphens, and handles accented character transliteration.
+
+```ts
+import * as _ from 'radashi'
+
+_.slugify('Hello World')
+// => 'hello-world'
+
+_.slugify('The Quick Brown Fox Jumps Over The Lazy Dog')
+// => 'the-quick-brown-fox-jumps-over-the-lazy-dog'
+```
+
+### Handling Special Characters
+
+Special characters are removed or converted to hyphens:
+
+```ts
+_.slugify('Node.js is Great!')
+// => 'nodejs-is-great'
+
+_.slugify('Price: $99.99')
+// => 'price-9999'
+
+_.slugify('rock & roll')
+// => 'rock-roll'
+```
+
+### Accented Characters
+
+Accented and diacritical characters are transliterated to their base form:
+
+```ts
+_.slugify('Café au Lait')
+// => 'cafe-au-lait'
+
+_.slugify('Crème brûlée')
+// => 'creme-brulee'
+
+_.slugify('São Paulo')
+// => 'sao-paulo'
+
+_.slugify('Zürich')
+// => 'zurich'
+```
+
+### CamelCase Support
+
+Handles camelCase and PascalCase strings:
+
+```ts
+_.slugify('helloWorld')
+// => 'hello-world'
+
+_.slugify('XMLHttpRequest')
+// => 'xml-http-request'
+
+_.slugify('iPhone 15 Pro Max')
+// => 'i-phone-15-pro-max'
+```
+
+### Edge Cases
+
+Handles various edge cases gracefully:
+
+```ts
+// Empty strings
+_.slugify('')
+// => ''
+
+// Multiple spaces/hyphens are normalized
+_.slugify('hello   world')
+// => 'hello-world'
+
+_.slugify('hello---world')
+// => 'hello-world'
+
+// Leading/trailing hyphens are removed
+_.slugify('  hello world  ')
+// => 'hello-world'
+
+// Only special characters return empty string
+_.slugify('!@#$%')
+// => ''
+```

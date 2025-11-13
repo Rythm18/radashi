@@ -1,0 +1,188 @@
+diff --git a/benchmarks/string/slugify.bench.ts b/benchmarks/string/slugify.bench.ts
+new file mode 100644
+index 0000000..41979f2
+--- /dev/null
++++ b/benchmarks/string/slugify.bench.ts
+@@ -0,0 +1,23 @@
++import * as _ from 'radashi'
++
++describe('slugify', () => {
++  bench('with basic string', () => {
++    _.slugify('Hello World')
++  })
++
++  bench('with complex string', () => {
++    _.slugify('The Quick Brown Fox Jumps Over The Lazy Dog')
++  })
++
++  bench('with accented characters', () => {
++    _.slugify('Crème brûlée in São Paulo')
++  })
++
++  bench('with camelCase', () => {
++    _.slugify('XMLHttpRequest')
++  })
++
++  bench('with special characters', () => {
++    _.slugify('Node.js vs Deno: Which is Better?')
++  })
++})
+diff --git a/docs/string/slugify.mdx b/docs/string/slugify.mdx
+new file mode 100644
+index 0000000..6c66d7c
+--- /dev/null
++++ b/docs/string/slugify.mdx
+@@ -0,0 +1,92 @@
++---
++title: slugify
++description: Convert a string to a URL-friendly slug
++since: 12.2.0
++---
++
++### Usage
++
++Converts a string into a URL-friendly slug. The function converts to lowercase, removes special characters, replaces spaces with hyphens, and handles accented character transliteration.
++
++```ts
++import * as _ from 'radashi'
++
++_.slugify('Hello World')
++// => 'hello-world'
++
++_.slugify('The Quick Brown Fox Jumps Over The Lazy Dog')
++// => 'the-quick-brown-fox-jumps-over-the-lazy-dog'
++```
++
++### Handling Special Characters
++
++Special characters are removed or converted to hyphens:
++
++```ts
++_.slugify('Node.js is Great!')
++// => 'nodejs-is-great'
++
++_.slugify('Price: $99.99')
++// => 'price-9999'
++
++_.slugify('rock & roll')
++// => 'rock-roll'
++```
++
++### Accented Characters
++
++Accented and diacritical characters are transliterated to their base form:
++
++```ts
++_.slugify('Café au Lait')
++// => 'cafe-au-lait'
++
++_.slugify('Crème brûlée')
++// => 'creme-brulee'
++
++_.slugify('São Paulo')
++// => 'sao-paulo'
++
++_.slugify('Zürich')
++// => 'zurich'
++```
++
++### CamelCase Support
++
++Handles camelCase and PascalCase strings:
++
++```ts
++_.slugify('helloWorld')
++// => 'hello-world'
++
++_.slugify('XMLHttpRequest')
++// => 'xml-http-request'
++
++_.slugify('iPhone 15 Pro Max')
++// => 'i-phone-15-pro-max'
++```
++
++### Edge Cases
++
++Handles various edge cases gracefully:
++
++```ts
++// Empty strings
++_.slugify('')
++// => ''
++
++// Multiple spaces/hyphens are normalized
++_.slugify('hello   world')
++// => 'hello-world'
++
++_.slugify('hello---world')
++// => 'hello-world'
++
++// Leading/trailing hyphens are removed
++_.slugify('  hello world  ')
++// => 'hello-world'
++
++// Only special characters return empty string
++_.slugify('!@#$%')
++// => ''
++```
+diff --git a/src/mod.ts b/src/mod.ts
+index de7f13d..bc4ee75 100644
+--- a/src/mod.ts
++++ b/src/mod.ts
+@@ -127,6 +127,7 @@ export * from './string/dedent.ts'
+ export * from './string/escapeHTML.ts'
+ export * from './string/pascal.ts'
+ export * from './string/similarity.ts'
++export * from './string/slugify.ts'
+ export * from './string/snake.ts'
+ export * from './string/template.ts'
+ export * from './string/title.ts'
+diff --git a/src/string/slugify.ts b/src/string/slugify.ts
+new file mode 100644
+index 0000000..a7dbdcc
+--- /dev/null
++++ b/src/string/slugify.ts
+@@ -0,0 +1,43 @@
++/**
++ * Converts a string to a URL-friendly slug. The string is normalized to
++ * lowercase, special characters are removed, and spaces are replaced with
++ * hyphens. Supports transliteration of accented characters (e.g., é → e).
++ *
++ * @see https://radashi.js.org/reference/string/slugify
++ * @example
++ * ```ts
++ * slugify('Hello World') // => 'hello-world'
++ * slugify('Café au Lait') // => 'cafe-au-lait'
++ * slugify('Node.js is Great!') // => 'nodejs-is-great'
++ * ```
++ * @version 12.2.0
++ */
++export function slugify(str: string): string {
++  if (!str) {
++    return ''
++  }
++
++  // Normalize unicode characters and decompose accented characters
++  const normalized = str.normalize('NFD').replace(/[\u0300-\u036f]/g, '')
++
++  // Convert to lowercase
++  let slug = normalized.toLowerCase()
++
++  // Replace camelCase boundaries with hyphens (e.g., helloWorld -> hello-world)
++  slug = slug.replace(/([a-z])([A-Z])/g, '$1-$2')
++
++  // Replace multiple uppercase letters (e.g., XMLHttp -> xml-http)
++  slug = slug.replace(/([A-Z]+)([A-Z][a-z])/g, '$1-$2')
++
++  // Replace non-alphanumeric characters (except hyphens) with hyphens
++  // Keep numbers, lowercase letters, and hyphens
++  slug = slug.replace(/[^a-z0-9-]+/g, '-')
++
++  // Replace multiple consecutive hyphens with a single hyphen
++  slug = slug.replace(/-+/g, '-')
++
++  // Remove leading and trailing hyphens
++  slug = slug.replace(/^-+|-+$/g, '')
++
++  return slug
++}

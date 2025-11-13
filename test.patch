@@ -1,0 +1,224 @@
+diff --git a/test.sh b/test.sh
+new file mode 100755
+index 0000000..70b0493
+--- /dev/null
++++ b/test.sh
+@@ -0,0 +1,25 @@
++#!/bin/bash
++
++# Test script for slugify feature implementation
++# Usage:
++#   ./test.sh base  - Run base repository tests
++#   ./test.sh new   - Run new slugify tests only
++
++set -e
++
++case "$1" in
++  base)
++    echo "Running base repository tests..."
++    pnpm test
++    ;;
++  new)
++    echo "Running new slugify tests..."
++    pnpm test tests/string/slugify.test.ts
++    ;;
++  *)
++    echo "Usage: $0 {base|new}"
++    echo "  base - Run base repository tests"
++    echo "  new  - Run new slugify tests only"
++    exit 1
++    ;;
++esac
+diff --git a/tests/string/slugify.test.ts b/tests/string/slugify.test.ts
+new file mode 100644
+index 0000000..df197a2
+--- /dev/null
++++ b/tests/string/slugify.test.ts
+@@ -0,0 +1,187 @@
++import * as _ from 'radashi'
++
++describe('slugify', () => {
++  test('converts basic string to slug', () => {
++    expect(_.slugify('Hello World')).toBe('hello-world')
++  })
++
++  test('converts string with multiple spaces', () => {
++    expect(_.slugify('Hello   World   Test')).toBe('hello-world-test')
++  })
++
++  test('handles single word', () => {
++    expect(_.slugify('hello')).toBe('hello')
++    expect(_.slugify('HELLO')).toBe('hello')
++  })
++
++  test('removes special characters', () => {
++    expect(_.slugify('Hello! World?')).toBe('hello-world')
++    expect(_.slugify('Hello @ World #')).toBe('hello-world')
++    expect(_.slugify('Price: $99.99')).toBe('price-9999')
++  })
++
++  test('handles underscores and hyphens', () => {
++    expect(_.slugify('hello_world')).toBe('hello-world')
++    expect(_.slugify('hello-world')).toBe('hello-world')
++    expect(_.slugify('hello_world-test')).toBe('hello-world-test')
++  })
++
++  test('handles camelCase', () => {
++    expect(_.slugify('helloWorld')).toBe('hello-world')
++    expect(_.slugify('HelloWorld')).toBe('hello-world')
++    expect(_.slugify('XMLHttpRequest')).toBe('xml-http-request')
++  })
++
++  test('removes multiple consecutive hyphens', () => {
++    expect(_.slugify('hello---world')).toBe('hello-world')
++    expect(_.slugify('hello___world')).toBe('hello-world')
++    expect(_.slugify('hello - - - world')).toBe('hello-world')
++  })
++
++  test('trims leading and trailing hyphens', () => {
++    expect(_.slugify('-hello-world-')).toBe('hello-world')
++    expect(_.slugify('___hello-world___')).toBe('hello-world')
++    expect(_.slugify('  hello world  ')).toBe('hello-world')
++  })
++
++  test('handles numbers', () => {
++    expect(_.slugify('hello 123 world')).toBe('hello-123-world')
++    expect(_.slugify('123')).toBe('123')
++    expect(_.slugify('v1.2.3')).toBe('v123')
++  })
++
++  test('handles accented characters', () => {
++    expect(_.slugify('café')).toBe('cafe')
++    expect(_.slugify('naïve')).toBe('naive')
++    expect(_.slugify('Zürich')).toBe('zurich')
++    expect(_.slugify('São Paulo')).toBe('sao-paulo')
++  })
++
++  test('handles unicode characters', () => {
++    expect(_.slugify('Hello 你好 World')).toBe('hello-world')
++    expect(_.slugify('Привет мир')).toBe('')
++    expect(_.slugify('こんにちは')).toBe('')
++  })
++
++  test('handles mixed unicode and latin', () => {
++    expect(_.slugify('Hello 世界 World')).toBe('hello-world')
++    expect(_.slugify('Test 测试 123')).toBe('test-123')
++  })
++
++  test('handles empty and whitespace strings', () => {
++    expect(_.slugify('')).toBe('')
++    expect(_.slugify('   ')).toBe('')
++    expect(_.slugify('\t\n')).toBe('')
++  })
++
++  test('handles strings with only special characters', () => {
++    expect(_.slugify('!@#$%^&*()')).toBe('')
++    expect(_.slugify('---')).toBe('')
++    expect(_.slugify('___')).toBe('')
++  })
++
++  test('handles dots and slashes', () => {
++    expect(_.slugify('hello.world')).toBe('helloworld')
++    expect(_.slugify('hello/world')).toBe('hello-world')
++    expect(_.slugify('path/to/file.txt')).toBe('path-to-filetxt')
++  })
++
++  test('handles apostrophes and quotes', () => {
++    expect(_.slugify("don't stop")).toBe('dont-stop')
++    expect(_.slugify('"Hello World"')).toBe('hello-world')
++    expect(_.slugify("it's a test")).toBe('its-a-test')
++  })
++
++  test('handles parentheses and brackets', () => {
++    expect(_.slugify('hello (world)')).toBe('hello-world')
++    expect(_.slugify('hello [world]')).toBe('hello-world')
++    expect(_.slugify('hello {world}')).toBe('hello-world')
++  })
++
++  test('handles ampersands and plus signs', () => {
++    expect(_.slugify('rock & roll')).toBe('rock-roll')
++    expect(_.slugify('1 + 1 = 2')).toBe('1-1-2')
++    expect(_.slugify('C++')).toBe('c')
++  })
++
++  test('preserves URL-safe already slugified strings', () => {
++    expect(_.slugify('hello-world-123')).toBe('hello-world-123')
++    expect(_.slugify('my-awesome-post')).toBe('my-awesome-post')
++  })
++
++  test('handles very long strings', () => {
++    const longString = 'a'.repeat(1000)
++    expect(_.slugify(longString)).toBe(longString)
++  })
++
++  test('handles complex real-world examples', () => {
++    expect(_.slugify('The Quick Brown Fox Jumps Over The Lazy Dog')).toBe(
++      'the-quick-brown-fox-jumps-over-the-lazy-dog',
++    )
++    expect(_.slugify('10 Ways to Improve Your SEO in 2024!')).toBe(
++      '10-ways-to-improve-your-seo-in-2024',
++    )
++    expect(_.slugify('Node.js vs Deno: Which is Better?')).toBe(
++      'nodejs-vs-deno-which-is-better',
++    )
++    expect(_.slugify('My First Blog Post (Draft)')).toBe(
++      'my-first-blog-post-draft',
++    )
++  })
++
++  test('handles german umlauts', () => {
++    expect(_.slugify('Äpfel')).toBe('apfel')
++    expect(_.slugify('Öl')).toBe('ol')
++    expect(_.slugify('Über')).toBe('uber')
++  })
++
++  test('handles french accents', () => {
++    expect(_.slugify('Crème brûlée')).toBe('creme-brulee')
++    expect(_.slugify('Château')).toBe('chateau')
++    expect(_.slugify('Élégant')).toBe('elegant')
++  })
++
++  test('handles spanish characters', () => {
++    expect(_.slugify('Niño')).toBe('nino')
++    expect(_.slugify('Jalapeño')).toBe('jalapeno')
++    expect(_.slugify('Mañana')).toBe('manana')
++  })
++
++  test('handles nordic characters', () => {
++    expect(_.slugify('Åse')).toBe('ase')
++    expect(_.slugify('Ødegård')).toBe('odegard')
++    expect(_.slugify('Håkon')).toBe('hakon')
++  })
++
++  test('handles polish characters', () => {
++    expect(_.slugify('Łódź')).toBe('lodz')
++    expect(_.slugify('Kraków')).toBe('krakow')
++  })
++
++  test('handles turkish characters', () => {
++    expect(_.slugify('İstanbul')).toBe('istanbul')
++    expect(_.slugify('Şehir')).toBe('sehir')
++  })
++
++  test('handles czech characters', () => {
++    expect(_.slugify('Česká')).toBe('ceska')
++    expect(_.slugify('Žižkov')).toBe('zizkov')
++  })
++
++  test('handles mixed case with numbers', () => {
++    expect(_.slugify('iPhone 15 Pro Max')).toBe('i-phone-15-pro-max')
++    expect(_.slugify('Windows10')).toBe('windows10')
++    expect(_.slugify('HTTP2Protocol')).toBe('http2-protocol')
++  })
++
++  test('handles edge case with only hyphens and spaces', () => {
++    expect(_.slugify('- - - -')).toBe('')
++    expect(_.slugify('     ')).toBe('')
++  })
++
++  test('handles tab and newline characters', () => {
++    expect(_.slugify('hello\tworld')).toBe('hello-world')
++    expect(_.slugify('hello\nworld')).toBe('hello-world')
++    expect(_.slugify('hello\r\nworld')).toBe('hello-world')
++  })
++})
