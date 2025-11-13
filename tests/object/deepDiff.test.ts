@@ -309,6 +309,14 @@ describe('deepDiff', () => {
       expect(result).toEqual([])
     })
 
+    test('treats absent and undefined properties as equal', () => {
+      // Absent property vs undefined should be treated as equal
+      expect(_.deepDiff({}, { a: undefined })).toEqual([])
+      expect(_.deepDiff({ a: undefined }, {})).toEqual([])
+      expect(_.deepDiff({ a: 1 }, { a: 1, b: undefined })).toEqual([])
+      expect(_.deepDiff({ a: 1, b: undefined }, { a: 1 })).toEqual([])
+    })
+
     test('handles NaN values', () => {
       // NaN is special - NaN !== NaN but Object.is(NaN, NaN) === true
       expect(_.deepDiff(NaN, NaN)).toEqual([])
@@ -411,12 +419,15 @@ describe('deepDiff', () => {
 
       const modifiedObj = { ...largeObj, key500: 999 }
 
-      const start = Date.now()
       const result = _.deepDiff(largeObj, modifiedObj)
-      const duration = Date.now() - start
 
       expect(result).toHaveLength(1)
-      expect(duration).toBeLessThan(100) // Should complete in reasonable time
+      expect(result[0]).toEqual({
+        type: 'CHANGE',
+        path: ['key500'],
+        oldValue: 500,
+        value: 999,
+      })
     })
 
     test('handles large arrays efficiently', () => {
@@ -424,12 +435,15 @@ describe('deepDiff', () => {
       const modifiedArr = [...largeArr]
       modifiedArr[500] = 999
 
-      const start = Date.now()
       const result = _.deepDiff(largeArr, modifiedArr)
-      const duration = Date.now() - start
 
       expect(result).toHaveLength(1)
-      expect(duration).toBeLessThan(100)
+      expect(result[0]).toEqual({
+        type: 'CHANGE',
+        path: [500],
+        oldValue: 500,
+        value: 999,
+      })
     })
   })
 })

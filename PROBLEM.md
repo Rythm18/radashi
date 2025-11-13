@@ -1,4 +1,4 @@
-# Deep Object Comparison
+# Deep Diff for Objects and Values
 
 ## Problem Brief
 
@@ -6,7 +6,7 @@ Implement a `deepDiff` function that compares two values and returns an array of
 
 ## Agent Instructions
 
-Create a comprehensive comparison utility that handles all JavaScript types and edge cases.
+Create a comprehensive diff utility that handles all JavaScript types and edge cases.
 
 **Core functionality:**
 - Return array of difference objects with `type`, `path`, `oldValue`/`value` fields
@@ -22,6 +22,7 @@ Create a comprehensive comparison utility that handles all JavaScript types and 
 
 **Behavior requirements:**
 - Return empty array for equal values (including same circular references)
+- Treat absent and undefined properties as equal (e.g., `{}` equals `{a: undefined}`)
 - Detect type mismatches (array ↔ object, null ↔ object)
 - Use `Object.is()` for primitive comparison (handles NaN, -0/+0)
 - Use `Reflect.ownKeys()` to include symbols

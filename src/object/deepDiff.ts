@@ -163,26 +163,32 @@ export function deepDiff(
   for (const key of allKeys) {
     const hasOld = Reflect.has(oldValue, key)
     const hasNew = Reflect.has(newValue, key)
+    const oldVal = oldValue[key]
+    const newVal = newValue[key]
 
-    if (!hasOld && hasNew) {
+    // Treat absent and undefined as equal
+    const isOldUndefined = !hasOld || oldVal === undefined
+    const isNewUndefined = !hasNew || newVal === undefined
+
+    if (isOldUndefined && isNewUndefined) {
+      // Both are absent or undefined - skip
+      continue
+    }
+
+    if (!hasOld && hasNew && newVal !== undefined) {
       differences.push({
         type: 'CREATE',
         path: [...path, key],
-        value: newValue[key],
+        value: newVal,
       })
-    } else if (hasOld && !hasNew) {
+    } else if (hasOld && !hasNew && oldVal !== undefined) {
       differences.push({
         type: 'REMOVE',
         path: [...path, key],
-        oldValue: oldValue[key],
+        oldValue: oldVal,
       })
-    } else {
-      const nested = deepDiff(
-        oldValue[key],
-        newValue[key],
-        [...path, key],
-        visited,
-      )
+    } else if (!isOldUndefined && !isNewUndefined) {
+      const nested = deepDiff(oldVal, newVal, [...path, key], visited)
       differences.push(...nested)
     }
   }
