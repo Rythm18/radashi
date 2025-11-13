@@ -1,0 +1,200 @@
+import type { NoInfer } from 'radashi'
+
+interface CacheEntry<T> {
+  value: T
+  exp: number | null
+  lastAccess: number
+}
+
+interface LRUNode {
+  key: string
+  prev: LRUNode | null
+  next: LRUNode | null
+}
+
+export interface MemoizeAsyncOptions<TArgs extends any[]> {
+  /**
+   * Custom function to generate cache key from arguments
+   */
+  key?: (...args: TArgs) => string
+  /**
+   * Time-to-live in milliseconds for cached values
+   */
+  ttl?: number
+  /**
+   * Maximum number of cached entries (LRU eviction when exceeded)
+   */
+  maxSize?: number
+}
+
+/**
+ * Creates a memoized async function with support for TTL expiration
+ * and LRU cache size limiting. Automatically deduplicates concurrent
+ * requests for the same arguments.
+ *
+ * @see https://radashi.js.org/reference/curry/memoizeAsync
+ * @example
+ * ```ts
+ * const fetchUser = memoizeAsync(
+ *   async (id: string) => {
+ *     const response = await fetch(`/api/users/${id}`)
+ *     return response.json()
+ *   },
+ *   { ttl: 60000, maxSize: 100 }
+ * )
+ *
+ * // Multiple concurrent calls return the same promise
+ * const [user1, user2, user3] = await Promise.all([
+ *   fetchUser('123'),
+ *   fetchUser('123'),
+ *   fetchUser('123'),
+ * ])
+ * // Only one API call is made
+ * ```
+ * @version 12.3.0
+ */
+export function memoizeAsync<TArgs extends any[], TResult>(
+  func: (...args: TArgs) => Promise<TResult>,
+  options: MemoizeAsyncOptions<NoInfer<TArgs>> = {},
+): (...args: TArgs) => Promise<TResult> {
+  const cache = new Map<string, CacheEntry<TResult>>()
+  const inFlight = new Map<string, Promise<TResult>>()
+  const keyFunc = options.key ?? null
+  const ttl = options.ttl ?? null
+  const maxSize = options.maxSize ?? null
+
+  // LRU tracking
+  let lruHead: LRUNode | null = null
+  let lruTail: LRUNode | null = null
+  const lruMap = new Map<string, LRUNode>()
+
+  const moveToEnd = (key: string) => {
+    if (!maxSize) return
+
+    let node = lruMap.get(key)
+    if (!node) {
+      // Create new node
+      node = { key, prev: null, next: null }
+      lruMap.set(key, node)
+    } else if (node === lruTail) {
+      // Already at the end
+      return
+    } else {
+      // Remove from current position
+      if (node.prev) {
+        node.prev.next = node.next
+      }
+      if (node.next) {
+        node.next.prev = node.prev
+      }
+      if (node === lruHead) {
+        lruHead = node.next
+      }
+    }
+
+    // Add to end
+    node.prev = lruTail
+    node.next = null
+    if (lruTail) {
+      lruTail.next = node
+    }
+    lruTail = node
+    if (!lruHead) {
+      lruHead = node
+    }
+  }
+
+  const evictLRU = () => {
+    if (!lruHead || !maxSize) return
+
+    const keyToEvict = lruHead.key
+    cache.delete(keyToEvict)
+    lruMap.delete(keyToEvict)
+
+    lruHead = lruHead.next
+    if (lruHead) {
+      lruHead.prev = null
+    } else {
+      lruTail = null
+    }
+  }
+
+  return function callWithMemo(...args: TArgs): Promise<TResult> {
+    const key = keyFunc
+      ? keyFunc(...args)
+      : JSON.stringify(args, (_, value) => {
+          // Preserve undefined in serialization
+          return value === undefined ? '__undefined__' : value
+        })
+
+    // Check if there's an in-flight request for this key
+    const inflightPromise = inFlight.get(key)
+    if (inflightPromise) {
+      return inflightPromise
+    }
+
+    // Check cache
+    const cached = cache.get(key)
+    if (cached !== undefined) {
+      // Check if expired
+      if (cached.exp === null || cached.exp > Date.now()) {
+        // Update LRU on cache hit
+        moveToEnd(key)
+        return Promise.resolve(cached.value)
+      }
+      // Expired, remove from cache
+      cache.delete(key)
+      const node = lruMap.get(key)
+      if (node) {
+        if (node.prev) {
+          node.prev.next = node.next
+        }
+        if (node.next) {
+          node.next.prev = node.prev
+        }
+        if (node === lruHead) {
+          lruHead = node.next
+        }
+        if (node === lruTail) {
+          lruTail = node.prev
+        }
+        lruMap.delete(key)
+      }
+    }
+
+    // Execute function
+    const promise = (async () => {
+      try {
+        const result = await func(...args)
+
+        // Check if we need to evict before adding
+        if (maxSize && cache.size >= maxSize) {
+          evictLRU()
+        }
+
+        // Cache the result
+        cache.set(key, {
+          value: result,
+          exp: ttl ? Date.now() + ttl : null,
+          lastAccess: Date.now(),
+        })
+
+        // Update LRU
+        moveToEnd(key)
+
+        return result
+      } catch (error) {
+        // Don't cache errors
+        throw error
+      } finally {
+        // Remove from in-flight
+        inFlight.delete(key)
+      }
+    })()
+
+    // Store in-flight promise
+    inFlight.set(key, promise)
+
+    return promise
+  }
+}
