@@ -10,8 +10,10 @@ set -e
 case "$1" in
   base)
     echo "Running base repository tests (excluding slugify tests)..."
-    # Use TEST_EXCLUDE environment variable to exclude the new test file
-    TEST_EXCLUDE="tests/string/slugify.test.ts" pnpm test
+    # Run all tests except slugify by specifying all test files except slugify
+    pnpm exec vitest run --coverage \
+      --exclude 'tests/string/slugify.test.ts' \
+      'tests/**/*.test.ts'
     ;;
   new)
     echo "Running new slugify tests..."

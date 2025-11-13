@@ -25,6 +25,12 @@ Implement a string transformation function that produces URL-safe slugs suitable
 
 Follow existing string function patterns in `/src/string/`. Add corresponding test file, benchmark, documentation, and export statement.
 
+**Development workflow:**
+1. Apply `test.patch` first - tests will fail (this is expected TDD approach)
+2. Implement the feature following these instructions
+3. Apply `solution.patch` or verify your implementation passes `./test.sh new`
+4. Ensure base tests still pass with `./test.sh base`
+
 ## Test Assumptions
 
 Tests expect a function named `slugify` in `/src/string/slugify.ts` that accepts a string and returns a string. The function should be exported from the main module.

@@ -1,9 +1,9 @@
 diff --git a/test.sh b/test.sh
 new file mode 100755
-index 0000000..d8c3e55
+index 0000000..f91b4bf
 --- /dev/null
 +++ b/test.sh
-@@ -0,0 +1,25 @@
+@@ -0,0 +1,28 @@
 +#!/bin/bash
 +
 +# Test script for slugify feature implementation
@@ -16,7 +16,10 @@ index 0000000..d8c3e55
 +case "$1" in
 +  base)
 +    echo "Running base repository tests (excluding slugify tests)..."
-+    pnpm test --exclude tests/string/slugify.test.ts
++    # Run all tests except slugify by specifying all test files except slugify
++    pnpm exec vitest run --coverage \
++      --exclude 'tests/string/slugify.test.ts' \
++      'tests/**/*.test.ts'
 +    ;;
 +  new)
 +    echo "Running new slugify tests..."
