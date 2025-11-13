@@ -163,10 +163,20 @@ export function deepDiff(
   for (const key of allKeys) {
     const hasOld = Reflect.has(oldValue, key)
     const hasNew = Reflect.has(newValue, key)
-    const oldVal = oldValue[key]
-    const newVal = newValue[key]
 
-    // Treat absent and undefined as equal
+    // Get property descriptors to handle getters
+    const oldDescriptor = hasOld
+      ? Object.getOwnPropertyDescriptor(oldValue, key)
+      : undefined
+    const newDescriptor = hasNew
+      ? Object.getOwnPropertyDescriptor(newValue, key)
+      : undefined
+
+    // Get the actual values (will invoke getters if present)
+    const oldVal = hasOld ? oldValue[key] : undefined
+    const newVal = hasNew ? newValue[key] : undefined
+
+    // Treat absent and undefined as equal for objects
     const isOldUndefined = !hasOld || oldVal === undefined
     const isNewUndefined = !hasNew || newVal === undefined
 

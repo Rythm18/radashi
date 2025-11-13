@@ -1,9 +1,9 @@
 diff --git a/src/object/deepDiff.ts b/src/object/deepDiff.ts
 new file mode 100644
-index 0000000..177aacb
+index 0000000..daae31f
 --- /dev/null
 +++ b/src/object/deepDiff.ts
-@@ -0,0 +1,218 @@
+@@ -0,0 +1,228 @@
 +/**
 + * Compare two values and return an array of differences. Each difference
 + * includes the type of change, the path to the changed value, and the old
@@ -169,10 +169,20 @@ index 0000000..177aacb
 +  for (const key of allKeys) {
 +    const hasOld = Reflect.has(oldValue, key)
 +    const hasNew = Reflect.has(newValue, key)
-+    const oldVal = oldValue[key]
-+    const newVal = newValue[key]
 +
-+    // Treat absent and undefined as equal
++    // Get property descriptors to handle getters
++    const oldDescriptor = hasOld
++      ? Object.getOwnPropertyDescriptor(oldValue, key)
++      : undefined
++    const newDescriptor = hasNew
++      ? Object.getOwnPropertyDescriptor(newValue, key)
++      : undefined
++
++    // Get the actual values (will invoke getters if present)
++    const oldVal = hasOld ? oldValue[key] : undefined
++    const newVal = hasNew ? newValue[key] : undefined
++
++    // Treat absent and undefined as equal for objects
 +    const isOldUndefined = !hasOld || oldVal === undefined
 +    const isNewUndefined = !hasNew || newVal === undefined
 +

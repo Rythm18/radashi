@@ -32,10 +32,10 @@ index 0000000..1e2eb48
 +esac
 diff --git a/tests/object/deepDiff.test.ts b/tests/object/deepDiff.test.ts
 new file mode 100644
-index 0000000..4d1e9f5
+index 0000000..c89b0ee
 --- /dev/null
 +++ b/tests/object/deepDiff.test.ts
-@@ -0,0 +1,449 @@
+@@ -0,0 +1,609 @@
 +import * as _ from 'radashi'
 +
 +describe('deepDiff', () => {
@@ -372,7 +372,8 @@ index 0000000..4d1e9f5
 +      })
 +    })
 +
-+    test('handles sparse arrays', () => {
++    test('handles sparse arrays - holes are absent, not undefined', () => {
++      // Sparse array holes should be treated as absent (not undefined)
 +      const arr1 = [1, , 3] // eslint-disable-line no-sparse-arrays
 +      const arr2 = [1, 2, 3]
 +
@@ -382,6 +383,31 @@ index 0000000..4d1e9f5
 +        path: [1],
 +        value: 2,
 +      })
++      expect(result).toHaveLength(1)
++
++      // Reverse: removing an element creates a hole
++      const result2 = _.deepDiff(arr2, arr1)
++      expect(result2).toContainEqual({
++        type: 'REMOVE',
++        path: [1],
++        oldValue: 2,
++      })
++      expect(result2).toHaveLength(1)
++    })
++
++    test('distinguishes sparse array holes from undefined values', () => {
++      // Hole vs undefined are different
++      const arr1 = [1, , 3] // eslint-disable-line no-sparse-arrays
++      const arr2 = [1, undefined, 3]
++
++      // Hole (absent) to undefined (present) is a CREATE
++      const result = _.deepDiff(arr1, arr2)
++      expect(result).toContainEqual({
++        type: 'CREATE',
++        path: [1],
++        value: undefined,
++      })
++      expect(result).toHaveLength(1)
 +    })
 +
 +    test('handles large nested structures', () => {
@@ -445,6 +471,140 @@ index 0000000..4d1e9f5
 +
 +      const result = _.deepDiff(obj, JSON.parse(JSON.stringify(obj)))
 +      expect(result).toEqual([])
++    })
++  })
++
++  describe('non-enumerable properties', () => {
++    test('includes non-enumerable properties in diff', () => {
++      const obj1 = {}
++      Object.defineProperty(obj1, 'hidden', {
++        value: 1,
++        enumerable: false,
++      })
++
++      const obj2 = {}
++      Object.defineProperty(obj2, 'hidden', {
++        value: 2,
++        enumerable: false,
++      })
++
++      const result = _.deepDiff(obj1, obj2)
++      expect(result).toContainEqual({
++        type: 'CHANGE',
++        path: ['hidden'],
++        oldValue: 1,
++        value: 2,
++      })
++    })
++
++    test('detects added non-enumerable properties', () => {
++      const obj1 = { a: 1 }
++      const obj2 = { a: 1 }
++      Object.defineProperty(obj2, 'hidden', {
++        value: 2,
++        enumerable: false,
++      })
++
++      const result = _.deepDiff(obj1, obj2)
++      expect(result).toContainEqual({
++        type: 'CREATE',
++        path: ['hidden'],
++        value: 2,
++      })
++    })
++
++    test('detects removed non-enumerable properties', () => {
++      const obj1 = { a: 1 }
++      Object.defineProperty(obj1, 'hidden', {
++        value: 2,
++        enumerable: false,
++      })
++      const obj2 = { a: 1 }
++
++      const result = _.deepDiff(obj1, obj2)
++      expect(result).toContainEqual({
++        type: 'REMOVE',
++        path: ['hidden'],
++        oldValue: 2,
++      })
++    })
++  })
++
++  describe('getters and computed properties', () => {
++    test('compares getter values, not the getters themselves', () => {
++      const obj1 = {
++        get computed() {
++          return 42
++        },
++      }
++      const obj2 = {
++        get computed() {
++          return 42
++        },
++      }
++
++      // Both getters return same value - no diff
++      const result = _.deepDiff(obj1, obj2)
++      expect(result).toEqual([])
++    })
++
++    test('detects when getter values differ', () => {
++      const obj1 = {
++        get computed() {
++          return 42
++        },
++      }
++      const obj2 = {
++        get computed() {
++          return 43
++        },
++      }
++
++      const result = _.deepDiff(obj1, obj2)
++      expect(result).toContainEqual({
++        type: 'CHANGE',
++        path: ['computed'],
++        oldValue: 42,
++        value: 43,
++      })
++    })
++
++    test('treats getter replaced by data property as change', () => {
++      const obj1 = {
++        get value() {
++          return 42
++        },
++      }
++      const obj2 = { value: 42 }
++
++      // Even though values are same, descriptor changed
++      const result = _.deepDiff(obj1, obj2)
++      expect(result).toEqual([])
++    })
++  })
++
++  describe('function properties', () => {
++    test('compares functions by reference', () => {
++      const fn = () => 42
++      const obj1 = { fn }
++      const obj2 = { fn }
++
++      expect(_.deepDiff(obj1, obj2)).toEqual([])
++    })
++
++    test('detects when function reference changes', () => {
++      const fn1 = () => 42
++      const fn2 = () => 42
++      const obj1 = { fn: fn1 }
++      const obj2 = { fn: fn2 }
++
++      const result = _.deepDiff(obj1, obj2)
++      expect(result).toContainEqual({
++        type: 'CHANGE',
++        path: ['fn'],
++        oldValue: fn1,
++        value: fn2,
++      })
 +    })
 +  })
 +

@@ -16,20 +16,24 @@ Create a comprehensive diff utility that handles all JavaScript types and edge c
 - Handle circular references without infinite loops (use WeakMap for tracking)
 
 **Type support:**
-- Objects, Arrays, Maps, Sets, Dates, RegExp
-- Symbols, primitives (NaN, -0/+0 distinction)
-- Sparse arrays
+- Objects (plain and with prototypes), Arrays, Maps, Sets, Dates, RegExp
+- Symbols, primitives (NaN, -0/+0 distinction), Functions
+- Sparse arrays (holes ≠ undefined)
+- Non-enumerable properties
+- Getter/setter properties (compare values, not descriptors)
 
 **Behavior requirements:**
-- Return empty array for equal values (including same circular references)
-- Treat absent and undefined properties as equal (e.g., `{}` equals `{a: undefined}`)
-- Detect type mismatches (array ↔ object, null ↔ object)
-- Use `Object.is()` for primitive comparison (handles NaN, -0/+0)
-- Use `Reflect.ownKeys()` to include symbols
+- Empty array for equal values (including same circular refs)
+- Absent = undefined for objects ONLY (e.g., `{}` = `{a: undefined}`)  
+- Arrays: holes ≠ undefined (sparse `[1,,3]` vs `[1,undefined,3]` differ)
+- Detect type mismatches (array ↔ object)
+- `Object.is()` for primitives (NaN, -0/+0)
+- `Reflect.ownKeys()` for symbols + non-enumerable properties
+- Getters: compare values, not functions
+- Functions: compare by reference
 
-**Performance considerations:**
-- Avoid unnecessary traversals when values are identical
-- Handle large objects (1000+ keys) and deep nesting efficiently
+**Performance:**
+Handle large objects (1000+ keys) and deep nesting without unnecessary traversals
 
 Follow patterns in `/src/object/`. Export proper TypeScript types for the diff result.
 
