@@ -1,9 +1,9 @@
 diff --git a/src/object/deepDiff.ts b/src/object/deepDiff.ts
 new file mode 100644
-index 0000000..daae31f
+index 0000000..763b15b
 --- /dev/null
 +++ b/src/object/deepDiff.ts
-@@ -0,0 +1,228 @@
+@@ -0,0 +1,236 @@
 +/**
 + * Compare two values and return an array of differences. Each difference
 + * includes the type of change, the path to the changed value, and the old
@@ -76,6 +76,14 @@ index 0000000..daae31f
 +  visited.set(oldValue, newValue)
 +
 +  const differences: Difference[] = []
++
++  // Handle WeakMap and WeakSet by reference only (not iterable)
++  if (oldValue instanceof WeakMap || oldValue instanceof WeakSet) {
++    if (oldValue === newValue) {
++      return []
++    }
++    return [{ type: 'CHANGE', path, oldValue, value: newValue }]
++  }
 +
 +  // Handle Maps
 +  if (oldValue instanceof Map && newValue instanceof Map) {

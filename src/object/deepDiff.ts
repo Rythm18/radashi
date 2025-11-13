@@ -71,6 +71,14 @@ export function deepDiff(
 
   const differences: Difference[] = []
 
+  // Handle WeakMap and WeakSet by reference only (not iterable)
+  if (oldValue instanceof WeakMap || oldValue instanceof WeakSet) {
+    if (oldValue === newValue) {
+      return []
+    }
+    return [{ type: 'CHANGE', path, oldValue, value: newValue }]
+  }
+
   // Handle Maps
   if (oldValue instanceof Map && newValue instanceof Map) {
     const allKeys = new Set([...oldValue.keys(), ...newValue.keys()])

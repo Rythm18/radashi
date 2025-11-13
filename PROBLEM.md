@@ -16,21 +16,25 @@ Create a comprehensive diff utility that handles all JavaScript types and edge c
 - Handle circular references without infinite loops (use WeakMap for tracking)
 
 **Type support:**
-- Objects (plain and with prototypes), Arrays, Maps, Sets, Dates, RegExp
-- Symbols, primitives (NaN, -0/+0 distinction), Functions
-- Sparse arrays (holes ≠ undefined)
-- Non-enumerable properties
-- Getter/setter properties (compare values, not descriptors)
+- Objects (plain, with prototypes, frozen/sealed), Arrays, Maps, Sets
+- Dates, RegExp, WeakMap, WeakSet (reference-only)
+- Symbols, primitives (NaN, -0/+0), Functions
+- Sparse arrays (holes ≠ undefined), array-like objects
+- Non-enumerable properties, getters/setters
 
 **Behavior requirements:**
-- Empty array for equal values (including same circular refs)
-- Absent = undefined for objects ONLY (e.g., `{}` = `{a: undefined}`)  
-- Arrays: holes ≠ undefined (sparse `[1,,3]` vs `[1,undefined,3]` differ)
-- Detect type mismatches (array ↔ object)
+- Equal values → empty array (including same circular refs)
+- Objects: absent = undefined (e.g., `{}` = `{a: undefined}`)
+- Arrays: holes ≠ undefined (`[1,,3]` ≠ `[1,undefined,3]`)
+- Array ≠ array-like object (detect constructor difference)
+- Own properties only (ignore inherited via prototype)
+- Multiple refs to same object → track with WeakMap to detect structural differences
+- WeakMap/WeakSet → compare by reference only (not iterable)
 - `Object.is()` for primitives (NaN, -0/+0)
-- `Reflect.ownKeys()` for symbols + non-enumerable properties
+- `Reflect.ownKeys()` for symbols + non-enumerable
 - Getters: compare values, not functions
-- Functions: compare by reference
+- Functions: by reference
+- Frozen/sealed: compare values, ignore mutability state
 
 **Performance:**
 Handle large objects (1000+ keys) and deep nesting without unnecessary traversals
